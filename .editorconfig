@@ -1,0 +1,27 @@
+# EditorConfig — Universal formatting rules for any editor
+# https://editorconfig.org
+
+# This is the top-level config (don't look in parent directories)
+root = true
+
+# Default rules for all files
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Python — PEP 8 standard: 4 spaces
+[*.py]
+indent_size = 4
+max_line_length = 88
+
+# Markdown — trailing whitespace is intentional (line breaks)
+[*.md]
+trim_trailing_whitespace = false
+
+# Makefile — must use tabs
+[Makefile]
+indent_style = tab
