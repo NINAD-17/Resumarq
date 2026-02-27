@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/session";
 import { insertAnalysis, getAnalysesByUser } from "@/lib/db/analyses";
 import { getResumeById } from "@/lib/db/resumes";
 import { toAnalysisResponse } from "@/types/analysis";
+import { inngest } from "@/inngest/client";
 
 const MAX_JD_LENGTH = 10_000; // Characters
 
@@ -61,8 +62,15 @@ export async function POST(request: NextRequest) {
       updatedAt: now,
     });
 
-    // TODO: Fire Inngest event here (Phase B2)
-    // await inngest.send({ name: "analysis/created", data: { analysisId: ... } });
+    // Fire Inngest event to start background processing
+    await inngest.send({
+      name: "analysis/created",
+      data: {
+        analysisId: analysis._id.toHexString(),
+        resumeS3Key: resume.s3Key,
+        jdText: jdText.trim(),
+      },
+    });
 
     return NextResponse.json(
       toAnalysisResponse(analysis, resume.fileName),
