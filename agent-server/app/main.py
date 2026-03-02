@@ -46,8 +46,8 @@ async def analyze(
 
     Called by Inngest (via Next.js) when a user creates a new analysis.
     """
-    # TODO: Replace with actual LangGraph agent call (next commit)
+    # TODO: Wire to LangGraph pipeline in C6
     raise HTTPException(
         status_code=501,
-        detail="Analysis agent not yet implemented",
+        detail="Analysis pipeline not yet connected",
     )
