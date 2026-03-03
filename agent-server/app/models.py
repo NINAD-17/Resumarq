@@ -5,7 +5,7 @@ Pydantic models for the /analyze endpoint.
 These match the types defined in web/types/analysis.ts → AnalysisResults.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 # ─── Request ──────────────────────────────────────────────────────
@@ -14,9 +14,11 @@ from pydantic import BaseModel
 class AnalyzeRequest(BaseModel):
     """Incoming request from Inngest via Next.js."""
 
-    analysis_id: str
-    resume_s3_key: str
-    jd_text: str | None = None  # None = resume-only mode
+    model_config = {"populate_by_name": True}
+
+    analysis_id: str = Field(alias="analysisId")
+    resume_s3_key: str = Field(alias="resumeS3Key")
+    jd_text: str | None = Field(default=None, alias="jdText")
 
 
 # ─── Response Models ──────────────────────────────────────────────
