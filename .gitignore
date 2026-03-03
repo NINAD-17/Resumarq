@@ -80,6 +80,10 @@ coverage/
 # Python
 # ==========================
 
+# Agent prompt templates (product IP — see prompts.example/ for structure)
+agent-server/prompts/
+!agent-server/prompts/.gitkeep
+
 # Byte-compiled / optimized
 __pycache__/
 *.py[codz]

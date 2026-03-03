@@ -3,51 +3,107 @@ import { ObjectId } from "mongodb";
 // ─── Analysis Status ─────────────────────────────────────────────
 export type AnalysisStatus = "pending" | "processing" | "completed" | "failed";
 
-// ─── Agent Result Types ──────────────────────────────────────────
+// ─── ATS Audit Types ─────────────────────────────────────────────
 
-/** A single finding from the agent's analysis */
-export interface Finding {
-  category: string; // e.g. "missing_skill", "weak_bullet", "layout_issue"
+/** Result of evaluating a single ATS rule */
+export interface ATSRuleResult {
+  ruleId: string; // e.g. "contact_completeness"
+  ruleName: string; // e.g. "Contact Info Completeness"
+  status: "pass" | "warning" | "critical";
+  finding?: string; // What specifically is wrong
+  suggestion?: string; // How to fix it
+  affectedContent?: string; // The text causing the issue
+}
+
+/** Full ATS audit — list of all evaluated rules */
+export interface ATSAuditResult {
+  rules: ATSRuleResult[];
+}
+
+// ─── Impact Audit Types ──────────────────────────────────────────
+
+/** Evaluation of a single resume bullet point */
+export interface BulletAuditResult {
+  originalText: string;
+  experienceCompany: string;
+  isQuantified: boolean;
+  hasStrongVerb: boolean;
+  showsOutcome: boolean;
+  isTooVague: boolean;
+  isTooLong: boolean;
+  weakVerbUsed?: string;
+  issues: string[];
+  suggestedRewrite?: string; // Specific rewrite with [X%], [N] placeholders
+  bulletScore: number; // 0-100
+}
+
+export interface CareerProgressionNote {
+  observation: string;
+  severity: "positive" | "warning" | "neutral";
+}
+
+/** Full impact audit — all bullets scored with rewrites */
+export interface ImpactAuditResult {
+  bulletAudits: BulletAuditResult[];
+  careerProgressionNotes: CareerProgressionNote[];
+  employmentGaps: string[];
+  overallQuantificationRate: number; // 0.0-1.0
+}
+
+// ─── Gap Analysis Types ──────────────────────────────────────────
+
+/** How a JD skill maps to the resume */
+export interface SkillMatch {
+  skill: string;
+  matchType: "exact" | "semantic" | "missing";
+  semanticEquivalent?: string; // What the resume calls it
+  importance: "required" | "preferred";
+}
+
+export interface ResponsibilityCoverage {
+  responsibility: string;
+  covered: boolean;
+  evidence?: string;
+  gapNote?: string;
+}
+
+/** Full gap analysis — skills, responsibilities, seniority */
+export interface GapAnalysisResult {
+  skillMatches: SkillMatch[];
+  responsibilityCoverage: ResponsibilityCoverage[];
+  seniorityMatch: boolean;
+  seniorityNote?: string;
+  keywordsToAdd: string[];
+  keywordSuggestions: string[];
+}
+
+// ─── Scores & Summary ────────────────────────────────────────────
+
+export interface AnalysisScores {
+  overall: number; // 0-100: Critic's holistic score
+  ats: number; // 0-100: Calculated from ATS rules
+  impact: number; // 0-100: Calculated from bullet scores
+  match: number | null; // 0-100: Skill match vs JD (null if no JD)
+}
+
+export interface AdditionalFinding {
+  category: string;
   severity: "critical" | "warning" | "suggestion";
   title: string;
   description: string;
-  source?: string; // Which part of the resume this relates to
+  suggestion: string;
 }
 
-/** A single actionable recommendation */
-export interface Recommendation {
-  priority: "high" | "medium" | "low";
-  title: string;
-  description: string;
-  originalText?: string; // The current text from the resume
-  suggestedText?: string; // What the agent suggests instead
-}
-
-/** Hyperlink found in the resume */
-export interface HyperlinkCheck {
-  text: string; // The visible text (e.g. "GitHub")
-  url: string; // The actual URL
-  isAccessible: boolean; // Whether the URL resolves
-  note?: string; // e.g. "404 - page not found"
-}
-
-/** Structured scores from the agent */
-export interface AnalysisScores {
-  overallFit: number; // 0-100: How well the resume matches the JD
-  atsCompatibility: number; // 0-100: ATS-friendliness score
-  contentQuality: number; // 0-100: Impact, action verbs, quantification
-  layoutReadability: number; // 0-100: Visual layout and readability
-}
-
-/** The complete results object written by the agent */
+/** Complete analysis results written by the multi-agent graph */
 export interface AnalysisResults {
   scores: AnalysisScores;
-  summary: string; // 2-3 sentence overview
-  findings: Finding[];
-  recommendations: Recommendation[];
-  hyperlinks: HyperlinkCheck[];
-  matchedSkills: string[]; // Skills found in both resume and JD
-  missingSkills: string[]; // Skills in JD but not in resume
+  summary: string; // Critic's 2-3 sentence conclusion
+  atsAudit: ATSAuditResult;
+  impactAudit: ImpactAuditResult;
+  gapAnalysis: GapAnalysisResult | null; // null in resume-only mode
+  additionalFindings: AdditionalFinding[];
+  matchedSkills: string[]; // Required skills present in resume
+  missingSkills: string[]; // Required skills absent from resume
 }
 
 // ─── Analysis Document ──────────────────────────────────────────
@@ -56,39 +112,30 @@ export interface AnalysisResults {
 export interface AnalysisDocument {
   _id: ObjectId;
   userId: string;
-  resumeId: string; // References a resume in the `resumes` collection
-
-  // Input
-  jdText: string; // The job description text pasted by the user
-
-  // Processing
+  resumeId: string;
+  jdText: string | null; // null in resume-only mode
   status: AnalysisStatus;
-  error?: string; // Error message if status is "failed"
-
-  // Output (populated when status is "completed")
+  error?: string;
   results?: AnalysisResults;
-
-  // Timestamps
   createdAt: Date;
   updatedAt: Date;
   completedAt?: Date;
 }
 
-/** Shape for creating a new analysis (no _id, no results yet) */
 export type AnalysisInsert = Omit<
   AnalysisDocument,
   "_id" | "results" | "completedAt"
 >;
 
-/** Shape returned to the client (list endpoint omits jdText and results) */
+/** Shape returned to the client */
 export interface AnalysisResponse {
   id: string;
   resumeId: string;
-  resumeFileName?: string; // Joined from resumes collection for display
-  jdText?: string; // Omitted in list, included in detail
+  resumeFileName?: string;
+  jdText?: string | null;
   status: AnalysisStatus;
   error?: string;
-  results?: AnalysisResults; // Omitted in list, included in detail
+  results?: AnalysisResults;
   createdAt: string;
   completedAt?: string;
 }
