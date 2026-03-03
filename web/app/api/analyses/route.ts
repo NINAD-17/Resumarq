@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/session";
 import { insertAnalysis, getAnalysesByUser } from "@/lib/db/analyses";
+import { getResumesByUser } from "@/lib/db/resumes";
 import { getResumeById } from "@/lib/db/resumes";
 import { toAnalysisResponse } from "@/types/analysis";
 import { inngest } from "@/inngest/client";
@@ -94,9 +95,19 @@ export async function POST(request: NextRequest) {
 export async function GET() {
   try {
     const session = await requireSession();
-    const analyses = await getAnalysesByUser(session.user.id);
+    const [analyses, resumes] = await Promise.all([
+      getAnalysesByUser(session.user.id),
+      getResumesByUser(session.user.id),
+    ]);
 
-    return NextResponse.json(analyses.map((a) => toAnalysisResponse(a)));
+    // Build a map of resumeId → fileName for quick lookup
+    const resumeNames = new Map(
+      resumes.map((r) => [r._id.toHexString(), r.fileName]),
+    );
+
+    return NextResponse.json(
+      analyses.map((a) => toAnalysisResponse(a, resumeNames.get(a.resumeId))),
+    );
   } catch (error) {
     if (error instanceof Error && error.message === "Unauthorized") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

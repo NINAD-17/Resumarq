@@ -152,8 +152,119 @@ export function toAnalysisResponse(
     jdText: doc.jdText,
     status: doc.status,
     error: doc.error,
-    results: doc.results,
+    results: doc.results ? normalizeResults(doc.results) : undefined,
     createdAt: doc.createdAt.toISOString(),
     completedAt: doc.completedAt?.toISOString(),
+  };
+}
+
+/**
+ * Normalizes results from MongoDB.
+ *
+ * The FastAPI agent returns snake_case keys (ats_audit, impact_audit, etc.)
+ * which is standard Python. MongoDB stores them as-is. But our frontend
+ * TypeScript interfaces use camelCase. This function maps between them.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeResults(raw: any): AnalysisResults {
+  // If already camelCase (shouldn't happen, but be safe)
+  const atsAudit = raw.atsAudit || raw.ats_audit;
+  const impactAudit = raw.impactAudit || raw.impact_audit;
+  const gapAnalysis = raw.gapAnalysis || raw.gap_analysis || null;
+  const additionalFindings = raw.additionalFindings || raw.additional_findings || [];
+  const matchedSkills = raw.matchedSkills || raw.matched_skills || [];
+  const missingSkills = raw.missingSkills || raw.missing_skills || [];
+
+  return {
+    scores: raw.scores,
+    summary: raw.summary,
+    atsAudit: atsAudit ? normalizeATSAudit(atsAudit) : { rules: [] },
+    impactAudit: impactAudit ? normalizeImpactAudit(impactAudit) : {
+      bulletAudits: [],
+      careerProgressionNotes: [],
+      employmentGaps: [],
+      overallQuantificationRate: 0,
+    },
+    gapAnalysis: gapAnalysis ? normalizeGapAnalysis(gapAnalysis) : null,
+    additionalFindings: additionalFindings.map(normalizeAdditionalFinding),
+    matchedSkills,
+    missingSkills,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeATSAudit(raw: any): ATSAuditResult {
+  return {
+    rules: (raw.rules || []).map((r: any) => ({
+      ruleId: r.ruleId || r.rule_id,
+      ruleName: r.ruleName || r.rule_name,
+      status: r.status,
+      finding: r.finding,
+      suggestion: r.suggestion,
+      affectedContent: r.affectedContent || r.affected_content,
+    })),
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeImpactAudit(raw: any): ImpactAuditResult {
+  return {
+    bulletAudits: (raw.bulletAudits || raw.bullet_audits || []).map((b: any) => ({
+      originalText: b.originalText || b.original_text,
+      experienceCompany: b.experienceCompany || b.experience_company,
+      isQuantified: b.isQuantified ?? b.is_quantified,
+      hasStrongVerb: b.hasStrongVerb ?? b.has_strong_verb,
+      showsOutcome: b.showsOutcome ?? b.shows_outcome,
+      isTooVague: b.isTooVague ?? b.is_too_vague,
+      isTooLong: b.isTooLong ?? b.is_too_long,
+      weakVerbUsed: b.weakVerbUsed || b.weak_verb_used,
+      issues: b.issues || [],
+      suggestedRewrite: b.suggestedRewrite || b.suggested_rewrite,
+      bulletScore: b.bulletScore ?? b.bullet_score,
+    })),
+    careerProgressionNotes: (raw.careerProgressionNotes || raw.career_progression_notes || []).map(
+      (n: any) => ({
+        observation: n.observation,
+        severity: n.severity,
+      })
+    ),
+    employmentGaps: raw.employmentGaps || raw.employment_gaps || [],
+    overallQuantificationRate:
+      raw.overallQuantificationRate ?? raw.overall_quantification_rate ?? 0,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeGapAnalysis(raw: any): GapAnalysisResult {
+  return {
+    skillMatches: (raw.skillMatches || raw.skill_matches || []).map((s: any) => ({
+      skill: s.skill,
+      matchType: s.matchType || s.match_type,
+      semanticEquivalent: s.semanticEquivalent || s.semantic_equivalent,
+      importance: s.importance,
+    })),
+    responsibilityCoverage: (raw.responsibilityCoverage || raw.responsibility_coverage || []).map(
+      (r: any) => ({
+        responsibility: r.responsibility,
+        covered: r.covered,
+        evidence: r.evidence,
+        gapNote: r.gapNote || r.gap_note,
+      })
+    ),
+    seniorityMatch: raw.seniorityMatch ?? raw.seniority_match,
+    seniorityNote: raw.seniorityNote || raw.seniority_note,
+    keywordsToAdd: raw.keywordsToAdd || raw.keywords_to_add || [],
+    keywordSuggestions: raw.keywordSuggestions || raw.keyword_suggestions || [],
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeAdditionalFinding(raw: any): AdditionalFinding {
+  return {
+    category: raw.category,
+    severity: raw.severity,
+    title: raw.title,
+    description: raw.description,
+    suggestion: raw.suggestion,
   };
 }
