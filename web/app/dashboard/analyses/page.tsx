@@ -9,6 +9,8 @@ import {
   XCircle,
   FileText,
   ArrowRight,
+  FileSearch,
+  GitCompareArrows,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import type { AnalysisResponse } from "@/types/analysis";
@@ -99,7 +101,7 @@ export default function AnalysesListPage() {
           {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className="h-20 animate-pulse rounded-xl bg-muted/50"
+              className="h-24 animate-pulse rounded-xl bg-muted/50"
             />
           ))}
         </div>
@@ -148,88 +150,85 @@ export default function AnalysesListPage() {
         {analyses.map((analysis) => {
           const status = STATUS_CONFIG[analysis.status];
           const StatusIcon = status.icon;
+          const hasJD = !!analysis.jdText;
+          const scores = analysis.status === "completed" ? analysis.results?.scores : null;
 
           return (
             <Link
               key={analysis.id}
               href={`/dashboard/analyses/${analysis.id}`}
-              className="block"
+              className="block group"
             >
-              <Card className="transition-colors hover:bg-accent/30">
-                <CardContent className="flex items-center gap-4 py-4">
-                  {/* Status dot */}
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div
-                      className={`size-2 rounded-full shrink-0 ${status.dotClass} ${
-                        status.animate ? "animate-pulse" : ""
-                      }`}
-                    />
-
-                    {/* Resume name + date */}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">
-                        {analysis.resumeFileName || "Resume"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(analysis.createdAt).toLocaleDateString(
-                          "en-US",
-                          {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                            hour: "numeric",
-                            minute: "2-digit",
-                          },
-                        )}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Scores (only for completed) */}
-                  {analysis.status === "completed" && analysis.results && (
-                    <div className="flex items-center gap-3">
-                      <ScorePill
-                        label="Overall"
-                        value={analysis.results.scores.overall}
-                        colorClass="text-score-overall"
-                        dotClass="bg-score-overall"
-                      />
-                      <ScorePill
-                        label="ATS"
-                        value={analysis.results.scores.ats}
-                        colorClass="text-score-ats"
-                        dotClass="bg-score-ats"
-                      />
-                      <div className="hidden sm:contents">
-                        <ScorePill
-                          label="Impact"
-                          value={analysis.results.scores.impact}
-                          colorClass="text-score-impact"
-                          dotClass="bg-score-impact"
+              <Card className="transition-all hover:bg-accent/30 hover:border-border/80">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    {/* Left — Info */}
+                    <div className="min-w-0 flex-1 space-y-2">
+                      {/* Title row */}
+                      <div className="flex items-center gap-2.5">
+                        <div
+                          className={`size-2 shrink-0 rounded-full ${status.dotClass} ${
+                            status.animate ? "animate-pulse" : ""
+                          }`}
                         />
-                        {analysis.results.scores.match != null && (
-                          <ScorePill
-                            label="Match"
-                            value={analysis.results.scores.match}
-                            colorClass="text-score-match"
-                            dotClass="bg-score-match"
-                          />
-                        )}
+                        <p className="truncate text-[15px] font-semibold">
+                          {analysis.resumeFileName || "Resume Analysis"}
+                        </p>
                       </div>
+
+                      {/* Meta row — date + type badge */}
+                      <div className="flex items-center gap-3 pl-[18px]">
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(analysis.createdAt).toLocaleDateString(
+                            "en-US",
+                            {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                              hour: "numeric",
+                              minute: "2-digit",
+                            },
+                          )}
+                        </span>
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                          hasJD
+                            ? "bg-score-match/10 text-score-match"
+                            : "bg-muted text-muted-foreground"
+                        }`}>
+                          {hasJD ? (
+                            <><GitCompareArrows className="size-3" /> Resume + JD</>
+                          ) : (
+                            <><FileSearch className="size-3" /> Resume Only</>
+                          )}
+                        </span>
+                      </div>
+
+                      {/* Score pills — only for completed */}
+                      {scores && (
+                        <div className="flex flex-wrap items-center gap-2 pl-[18px]">
+                          <ScorePill label="Overall" value={scores.overall} variant="overall" />
+                          <ScorePill label="ATS" value={scores.ats} variant="ats" />
+                          <ScorePill label="Impact" value={scores.impact} variant="impact" />
+                          {scores.match != null && (
+                            <ScorePill label="Match" value={scores.match} variant="match" />
+                          )}
+                        </div>
+                      )}
                     </div>
-                  )}
 
-                  {/* Status badge */}
-                  <div
-                    className={`flex items-center gap-1.5 text-xs font-medium ${status.className}`}
-                  >
-                    <StatusIcon
-                      className={`size-3.5 ${status.animate ? "animate-spin" : ""}`}
-                    />
-                    <span className="hidden sm:inline">{status.label}</span>
+                    {/* Right — Status + Arrow */}
+                    <div className="flex shrink-0 items-center gap-2">
+                      <div
+                        className={`flex items-center gap-1.5 text-xs font-medium ${status.className}`}
+                      >
+                        <StatusIcon
+                          className={`size-3.5 ${status.animate ? "animate-spin" : ""}`}
+                        />
+                        <span className="hidden sm:inline">{status.label}</span>
+                      </div>
+                      <ArrowRight className="size-4 text-muted-foreground/30 transition-transform group-hover:translate-x-0.5" />
+                    </div>
                   </div>
-
-                  <ArrowRight className="size-4 text-muted-foreground/30" />
                 </CardContent>
               </Card>
             </Link>
@@ -240,22 +239,27 @@ export default function AnalysesListPage() {
   );
 }
 
+/* ─── Score pill sub-component ─────────────────────────────────── */
+
+const VARIANT_STYLES = {
+  overall: "bg-foreground/10 text-foreground font-bold",
+  ats: "bg-score-ats/10 text-score-ats",
+  impact: "bg-score-impact/10 text-score-impact",
+  match: "bg-score-match/10 text-score-match",
+};
+
 function ScorePill({
   label,
   value,
-  colorClass,
-  dotClass,
+  variant,
 }: {
   label: string;
   value: number;
-  colorClass: string;
-  dotClass: string;
+  variant: keyof typeof VARIANT_STYLES;
 }) {
   return (
-    <div className="flex items-center gap-1.5">
-      <div className={`size-1.5 rounded-full ${dotClass}`} />
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className={`text-xs font-semibold ${colorClass}`}>{value}</span>
-    </div>
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums ${VARIANT_STYLES[variant]}`}>
+      {label} {value}
+    </span>
   );
 }

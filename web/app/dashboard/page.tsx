@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, FileText, ArrowRight, X } from "lucide-react";
+import { Upload, FileText, ArrowRight, X, FileSearch, GitCompareArrows } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,6 +12,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+type AnalysisMode = "resume-only" | "resume-jd";
+
 export default function NewAnalysisPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -19,6 +21,7 @@ export default function NewAnalysisPage() {
   // Form state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [jdText, setJdText] = useState("");
+  const [analysisMode, setAnalysisMode] = useState<AnalysisMode>("resume-jd");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,8 +62,13 @@ export default function NewAnalysisPage() {
     }
   };
 
+  const canSubmit =
+    selectedFile &&
+    (analysisMode === "resume-only" || jdText.trim().length > 0) &&
+    !isSubmitting;
+
   const handleSubmit = async () => {
-    if (!selectedFile || !jdText.trim()) return;
+    if (!canSubmit) return;
 
     setIsSubmitting(true);
     setError(null);
@@ -68,7 +76,7 @@ export default function NewAnalysisPage() {
     try {
       // Step 1: Upload resume
       const formData = new FormData();
-      formData.append("file", selectedFile);
+      formData.append("file", selectedFile!);
 
       const uploadRes = await fetch("/api/resumes", {
         method: "POST",
@@ -88,7 +96,7 @@ export default function NewAnalysisPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           resumeId: resume.id,
-          jdText: jdText.trim(),
+          ...(analysisMode === "resume-jd" ? { jdText: jdText.trim() } : {}),
         }),
       });
 
@@ -115,7 +123,7 @@ export default function NewAnalysisPage() {
           New Analysis
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Upload your resume and paste the job description to get started.
+          Upload your resume to get AI-powered insights and actionable feedback.
         </p>
       </div>
 
@@ -187,7 +195,7 @@ export default function NewAnalysisPage() {
                       e.stopPropagation();
                       setSelectedFile(null);
                     }}
-                    className="ml-2 rounded-full p-1 hover:bg-accent"
+                    className="ml-2 rounded-full p-1 hover:bg-accent cursor-pointer"
                   >
                     <X className="size-4 text-muted-foreground" />
                   </button>
@@ -210,7 +218,7 @@ export default function NewAnalysisPage() {
               <Button
                 onClick={() => setStep(2)}
                 disabled={!selectedFile}
-                className="gap-2"
+                className="gap-2 cursor-pointer"
               >
                 Continue
                 <ArrowRight className="size-4" />
@@ -220,51 +228,98 @@ export default function NewAnalysisPage() {
         </Card>
       )}
 
-      {/* Step 2: Paste Job Description */}
+      {/* Step 2: Choose analysis type + optional JD */}
       {step === 2 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Job Description</CardTitle>
-            <CardDescription>
-              Paste the job description you want to compare your resume against
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <textarea
-              value={jdText}
-              onChange={(e) => setJdText(e.target.value)}
-              placeholder="Paste the full job description here..."
-              rows={12}
-              className="w-full resize-none rounded-lg border border-input bg-background px-4 py-3 text-sm leading-relaxed placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/30"
-            />
-            <p className="text-xs text-muted-foreground">
-              {jdText.length.toLocaleString()} / 10,000 characters
-            </p>
+        <div className="space-y-6">
+          {/* Analysis Mode Selector */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              onClick={() => setAnalysisMode("resume-only")}
+              className={`flex items-start gap-3 rounded-xl border-2 p-4 text-left transition-all cursor-pointer ${
+                analysisMode === "resume-only"
+                  ? "border-foreground bg-accent/50"
+                  : "border-border hover:border-muted-foreground/30 hover:bg-accent/20"
+              }`}
+            >
+              <FileSearch className={`mt-0.5 size-5 shrink-0 ${
+                analysisMode === "resume-only" ? "text-foreground" : "text-muted-foreground"
+              }`} />
+              <div>
+                <p className="text-sm font-semibold">Resume Audit</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Get ATS compatibility check, bullet impact analysis, and improvement suggestions.
+                </p>
+              </div>
+            </button>
 
-            <div className="flex justify-between">
-              <Button variant="ghost" onClick={() => setStep(1)}>
-                Back
-              </Button>
-              <Button
-                onClick={handleSubmit}
-                disabled={!jdText.trim() || isSubmitting}
-                className="gap-2"
-              >
-                {isSubmitting ? (
-                  <>
-                    <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                    Analyzing...
-                  </>
-                ) : (
-                  <>
-                    Start Analysis
-                    <ArrowRight className="size-4" />
-                  </>
-                )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            <button
+              onClick={() => setAnalysisMode("resume-jd")}
+              className={`flex items-start gap-3 rounded-xl border-2 p-4 text-left transition-all cursor-pointer ${
+                analysisMode === "resume-jd"
+                  ? "border-foreground bg-accent/50"
+                  : "border-border hover:border-muted-foreground/30 hover:bg-accent/20"
+              }`}
+            >
+              <GitCompareArrows className={`mt-0.5 size-5 shrink-0 ${
+                analysisMode === "resume-jd" ? "text-foreground" : "text-muted-foreground"
+              }`} />
+              <div>
+                <p className="text-sm font-semibold">Resume + JD Match</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Everything in Resume Audit plus skill gap analysis, keyword matching, and JD fit score.
+                </p>
+              </div>
+            </button>
+          </div>
+
+          {/* Job Description (only when resume-jd) */}
+          {analysisMode === "resume-jd" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Job Description</CardTitle>
+                <CardDescription>
+                  Paste the job description you want to compare your resume against
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <textarea
+                  value={jdText}
+                  onChange={(e) => setJdText(e.target.value)}
+                  placeholder="Paste the full job description here..."
+                  rows={10}
+                  className="w-full resize-none rounded-lg border border-input bg-background px-4 py-3 text-sm leading-relaxed placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/30"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {jdText.length.toLocaleString()} / 10,000 characters
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex justify-between">
+            <Button variant="ghost" onClick={() => setStep(1)} className="cursor-pointer">
+              Back
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={!canSubmit}
+              className="gap-2 cursor-pointer"
+            >
+              {isSubmitting ? (
+                <>
+                  <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  {analysisMode === "resume-only" ? "Audit Resume" : "Start Analysis"}
+                  <ArrowRight className="size-4" />
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );
