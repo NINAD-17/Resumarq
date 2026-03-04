@@ -28,7 +28,7 @@ import type {
   GapAnalysisResult,
 } from "@/types/analysis";
 
-type Section = "summary" | "ats" | "impact" | "gap";
+type Section = "summary" | "ats" | "impact" | "gap" | "insights";
 
 const SECTION_META: Record<
   Section,
@@ -38,6 +38,7 @@ const SECTION_META: Record<
   ats: { label: "ATS Audit", icon: Shield },
   impact: { label: "Impact Audit", icon: Zap },
   gap: { label: "Gap Analysis", icon: Target },
+  insights: { label: "Insights", icon: Lightbulb },
 };
 
 export default function AnalysisDetailPage() {
@@ -171,7 +172,14 @@ export default function AnalysisDetailPage() {
   const impact = results.impactAudit as ImpactAuditResult;
   const gap = results.gapAnalysis as GapAnalysisResult | null;
 
-  const sections: Section[] = ["summary", "ats", "impact", ...(gap ? ["gap" as Section] : [])];
+  const hasInsights = (results.additionalFindings?.length ?? 0) > 0;
+  const sections: Section[] = [
+    "summary",
+    "ats",
+    "impact",
+    ...(gap ? ["gap" as Section] : []),
+    ...(hasInsights ? ["insights" as Section] : []),
+  ];
 
   // Generate humanized section summaries from data
   const atsPassed = ats?.rules?.filter((r) => r.status === "pass").length ?? 0;
@@ -199,6 +207,7 @@ export default function AnalysisDetailPage() {
             : "Excellent coverage — your skills align well with what the employer is looking for!"
         }`
       : "Gap analysis is only available when a job description is provided.",
+    insights: `Additional observations from our AI quality review. These are extra findings that don't fall into the standard audit categories but are worth your attention.`,
   };
 
   return (
@@ -277,7 +286,18 @@ export default function AnalysisDetailPage() {
 
         {/* ─── Mobile section tabs (visible on small screens) ──────── */}
         <div className="w-full md:hidden">
-          <div className="mb-4 flex gap-1 overflow-x-auto border-b border-border pb-0.5">
+          {/* Mobile scores row */}
+          <div className="mb-4 flex items-center justify-around rounded-xl border border-border bg-card px-4 py-3">
+            <MiniScore label="Overall" value={results.scores.overall} />
+            <MiniScore label="ATS" value={results.scores.ats} />
+            <MiniScore label="Impact" value={results.scores.impact} />
+            {results.scores.match != null && (
+              <MiniScore label="Match" value={results.scores.match} />
+            )}
+          </div>
+
+          {/* Scrollable tab bar — no visible scrollbar */}
+          <div className="mb-6 flex gap-1 overflow-x-auto border-b border-border pb-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {sections.map((sec) => {
               const { label, icon: Icon } = SECTION_META[sec];
               const isActive = activeSection === sec;
@@ -285,7 +305,7 @@ export default function AnalysisDetailPage() {
                 <button
                   key={sec}
                   onClick={() => setActiveSection(sec)}
-                  className={`flex shrink-0 items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer ${
+                  className={`flex shrink-0 items-center gap-1.5 px-3 py-2.5 text-[13px] font-medium transition-colors cursor-pointer ${
                     isActive
                       ? "border-b-2 border-foreground text-foreground"
                       : "text-muted-foreground"
@@ -296,16 +316,6 @@ export default function AnalysisDetailPage() {
                 </button>
               );
             })}
-          </div>
-
-          {/* Mobile scores row */}
-          <div className="mb-6 flex items-center justify-around rounded-xl border border-border bg-card px-4 py-4">
-            <MiniScore label="Overall" value={results.scores.overall} />
-            <MiniScore label="ATS" value={results.scores.ats} />
-            <MiniScore label="Impact" value={results.scores.impact} />
-            {results.scores.match != null && (
-              <MiniScore label="Match" value={results.scores.match} />
-            )}
           </div>
 
           {/* Mobile main content */}
@@ -389,20 +399,18 @@ function SectionContent({
   return (
     <div className="space-y-6">
       {/* Section Header + Summary */}
-      <div className="rounded-xl border border-border bg-card p-6">
+      <div className="rounded-xl border border-border bg-card p-5 md:p-6">
         <div className="flex items-center gap-2.5 mb-3">
           <Icon className="size-5 text-muted-foreground" />
-          <h2 className="text-xl font-bold">{label}</h2>
+          <h2 className="text-lg md:text-xl font-bold">{label}</h2>
         </div>
-        <p className="text-[15px] leading-relaxed text-muted-foreground">
+        <p className="text-[14px] md:text-[15px] leading-relaxed text-muted-foreground">
           {summaries[section]}
         </p>
       </div>
 
       {/* Section-specific content */}
-      {section === "summary" && (
-        <SummarySection results={results} />
-      )}
+      {section === "summary" && null /* Summary section only has the summary card above */}
 
       {section === "ats" && ats && (
         <ATSRulesTable rules={ats.rules} />
@@ -423,50 +431,51 @@ function SectionContent({
           missingSkills={results.missingSkills}
         />
       )}
+
+      {section === "insights" && (
+        <InsightsSection results={results} />
+      )}
     </div>
   );
 }
 
-/** Summary section — additional findings from the Critic */
-function SummarySection({ results }: { results: NonNullable<AnalysisResponse["results"]> }) {
-  if (!results.additionalFindings || results.additionalFindings.length === 0) return null;
+/** Insights section — additional findings from the Critic */
+function InsightsSection({ results }: { results: NonNullable<AnalysisResponse["results"]> }) {
+  if (!results.additionalFindings || results.additionalFindings.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-border bg-card p-6 text-center">
+        <p className="text-[14px] text-muted-foreground">No additional insights for this analysis.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-6">
-      <div className="flex items-center gap-2.5 mb-4">
-        <Lightbulb className="size-5 text-score-impact" />
-        <h3 className="text-lg font-bold">Additional Insights</h3>
-      </div>
-      <p className="mb-4 text-[13px] text-muted-foreground">
-        Extra observations from our quality review
-      </p>
-      <div className="space-y-3">
-        {results.additionalFindings.map((finding, i) => (
-          <div
-            key={i}
-            className={`rounded-lg border border-border px-5 py-4 border-l-[3px] ${
-              finding.severity === "critical"
-                ? "border-l-status-critical"
-                : finding.severity === "warning"
-                  ? "border-l-status-warning"
-                  : "border-l-score-ats"
-            }`}
-          >
-            <p className="text-[15px] font-semibold">{finding.title}</p>
-            <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
-              {finding.description}
-            </p>
-            {finding.suggestion && (
-              <div className="mt-2 flex items-start gap-2 rounded-md bg-score-ats/5 px-3 py-2">
-                <span className="text-sm">💡</span>
-                <p className="text-[13px] leading-relaxed text-score-ats">
-                  {finding.suggestion}
-                </p>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+    <div className="space-y-3">
+      {results.additionalFindings.map((finding, i) => (
+        <div
+          key={i}
+          className={`rounded-xl border border-border bg-card px-5 py-4 border-l-[3px] ${
+            finding.severity === "critical"
+              ? "border-l-status-critical"
+              : finding.severity === "warning"
+                ? "border-l-status-warning"
+                : "border-l-score-ats"
+          }`}
+        >
+          <p className="text-[15px] font-semibold">{finding.title}</p>
+          <p className="mt-1.5 text-[13px] md:text-[14px] leading-relaxed text-muted-foreground">
+            {finding.description}
+          </p>
+          {finding.suggestion && (
+            <div className="mt-2 flex items-start gap-2 rounded-md bg-score-ats/5 px-3 py-2">
+              <span className="text-sm">💡</span>
+              <p className="text-[13px] leading-relaxed text-score-ats">
+                {finding.suggestion}
+              </p>
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

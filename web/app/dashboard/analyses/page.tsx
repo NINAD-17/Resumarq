@@ -31,21 +31,21 @@ const STATUS_CONFIG: Record<string, StatusInfo> = {
   processing: {
     label: "Processing",
     icon: Loader2,
-    className: "text-[var(--score-impact)]",
-    dotClass: "bg-[var(--score-impact)]",
+    className: "text-score-impact",
+    dotClass: "bg-score-impact",
     animate: true,
   },
   completed: {
     label: "Completed",
     icon: CheckCircle2,
-    className: "text-[var(--score-ats)]",
-    dotClass: "bg-[var(--score-ats)]",
+    className: "text-score-ats",
+    dotClass: "bg-score-ats",
   },
   failed: {
     label: "Failed",
     icon: XCircle,
-    className: "text-[var(--status-critical)]",
-    dotClass: "bg-[var(--status-critical)]",
+    className: "text-status-critical",
+    dotClass: "bg-status-critical",
   },
 };
 
@@ -187,24 +187,35 @@ export default function AnalysesListPage() {
 
                   {/* Scores (only for completed) */}
                   {analysis.status === "completed" && analysis.results && (
-                    <div className="hidden sm:flex items-center gap-4">
+                    <div className="flex items-center gap-3">
+                      <ScorePill
+                        label="Overall"
+                        value={analysis.results.scores.overall}
+                        colorClass="text-score-overall"
+                        dotClass="bg-score-overall"
+                      />
                       <ScorePill
                         label="ATS"
                         value={analysis.results.scores.ats}
-                        color="var(--score-ats)"
+                        colorClass="text-score-ats"
+                        dotClass="bg-score-ats"
                       />
-                      <ScorePill
-                        label="Impact"
-                        value={analysis.results.scores.impact}
-                        color="var(--score-impact)"
-                      />
-                      {analysis.results.scores.match != null && (
+                      <div className="hidden sm:contents">
                         <ScorePill
-                          label="Match"
-                          value={analysis.results.scores.match}
-                          color="var(--score-match)"
+                          label="Impact"
+                          value={analysis.results.scores.impact}
+                          colorClass="text-score-impact"
+                          dotClass="bg-score-impact"
                         />
-                      )}
+                        {analysis.results.scores.match != null && (
+                          <ScorePill
+                            label="Match"
+                            value={analysis.results.scores.match}
+                            colorClass="text-score-match"
+                            dotClass="bg-score-match"
+                          />
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -232,20 +243,19 @@ export default function AnalysesListPage() {
 function ScorePill({
   label,
   value,
-  color,
+  colorClass,
+  dotClass,
 }: {
   label: string;
   value: number;
-  color: string;
+  colorClass: string;
+  dotClass: string;
 }) {
   return (
     <div className="flex items-center gap-1.5">
-      <div
-        className="size-1.5 rounded-full"
-        style={{ backgroundColor: color }}
-      />
+      <div className={`size-1.5 rounded-full ${dotClass}`} />
       <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="text-xs font-medium">{value}</span>
+      <span className={`text-xs font-semibold ${colorClass}`}>{value}</span>
     </div>
   );
 }
