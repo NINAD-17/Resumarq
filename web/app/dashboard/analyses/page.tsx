@@ -172,8 +172,13 @@ export default function AnalysesListPage() {
                           }`}
                         />
                         <p className="truncate text-[15px] font-semibold">
-                          {analysis.resumeFileName || "Resume Analysis"}
+                          {analysis.results?.title || analysis.resumeFileName || "Resume Analysis"}
                         </p>
+                        {analysis.results?.title && analysis.resumeFileName && (
+                          <p className="truncate text-xs text-muted-foreground mt-0.5">
+                            {analysis.resumeFileName}
+                          </p>
+                        )}
                       </div>
 
                       {/* Meta row — date + type badge */}

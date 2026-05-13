@@ -45,6 +45,11 @@ def compiler_node(state: AgentState) -> dict:
         else None
     )
 
+    # Extract candidate name from resume profile
+    resume_profile = state.get("resume_profile", {})
+    personal_info = resume_profile.get("personal_info", {})
+    candidate_name = personal_info.get("name", "")
+
     # ── Calculate deterministic scores ────────────────────────────
     ats_score = calculate_ats_score(ats_audit.rules)
     impact_score = calculate_impact_score(impact_audit)
@@ -79,6 +84,8 @@ def compiler_node(state: AgentState) -> dict:
             "impact": impact_score,  # Calculated from bullets
             "match": match_score,  # Calculated from skills (null if no JD)
         },
+        "title": critic_result.title,  # LLM-generated analysis title
+        "candidate_name": candidate_name,  # From resume profile
         "summary": critic_result.final_summary,
         "ats_audit": state["ats_audit"],  # Full ATSAuditResult (rules + findings)
         "impact_audit": state[

@@ -40,7 +40,10 @@ class AnalyzeResponse(BaseModel):
 
     scores: AnalysisScores
 
-    # Critic's 2-3 sentence human-readable conclusion
+    # LLM-generated short title, e.g. "MERN Full-Stack Developer Match"
+    title: str = ""
+
+    # Critic's personalized human-readable conclusion
     summary: str
 
     # Full structured audit outputs (serialized Pydantic models)

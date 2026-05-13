@@ -209,5 +209,6 @@ class CriticResult(BaseModel):
     revise_impact: bool = False  # True = Impact Audit needs to re-run
     revision_notes: str | None = None  # Instructions for the revised agent
     additional_findings: list[AdditionalFinding] = []
-    final_summary: str  # 2-3 sentence human-readable conclusion
+    final_summary: str  # Personalized, human-readable conclusion (paragraph)
     final_overall_score: int  # 0-100, critic's holistic assessment
+    title: str = ""  # Short descriptive title, e.g. "MERN Full-Stack Developer Match"

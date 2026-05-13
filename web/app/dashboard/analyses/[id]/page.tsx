@@ -184,30 +184,49 @@ export default function AnalysisDetailPage() {
   // Generate humanized section summaries from data
   const atsPassed = ats?.rules?.filter((r) => r.status === "pass").length ?? 0;
   const atsTotal = ats?.rules?.length ?? 0;
+  const atsWarnings = ats?.rules?.filter((r) => r.status === "warning").length ?? 0;
   const atsCritical = ats?.rules?.filter((r) => r.status === "critical").length ?? 0;
   const quantRate = Math.round((impact?.overallQuantificationRate ?? 0) * 100);
   const bulletCount = impact?.bulletAudits?.length ?? 0;
+  const strongBullets = impact?.bulletAudits?.filter((b) => b.bulletScore >= 70).length ?? 0;
+
+  // Extract first name from the resume candidate name
+  const firstName = results.candidateName?.split(" ")[0] || "";
+  const greeting = firstName ? `${firstName}, ` : "";
+
+  const matchedCount = results.matchedSkills?.length ?? 0;
+  const missingCount = results.missingSkills?.length ?? 0;
 
   const sectionSummaries: Record<Section, string> = {
     summary: results.summary,
-    ats: `Your resume passed ${atsPassed} out of ${atsTotal} ATS compatibility rules. ${
+
+    ats: `${greeting}your resume was checked against ${atsTotal} ATS compatibility rules and passed ${atsPassed} of them. ${
       atsCritical > 0
-        ? `There ${atsCritical === 1 ? "is" : "are"} ${atsCritical} critical ${atsCritical === 1 ? "issue" : "issues"} that could prevent your resume from being parsed correctly by Applicant Tracking Systems. Fixing ${atsCritical === 1 ? "this" : "these"} should be your top priority.`
-        : "Great job — no critical issues found! Focus on the warnings to further improve your score."
+        ? `We found ${atsCritical} critical ${atsCritical === 1 ? "issue" : "issues"} that could cause ATS systems to misparse or reject your resume entirely — ${atsCritical === 1 ? "this needs" : "these need"} to be your top fix priority.${atsWarnings > 0 ? ` There ${atsWarnings === 1 ? "is" : "are"} also ${atsWarnings} ${atsWarnings === 1 ? "warning" : "warnings"} worth addressing.` : ""}`
+        : atsWarnings > 0
+          ? `No critical issues were found — nice work! There ${atsWarnings === 1 ? "is" : "are"} ${atsWarnings} ${atsWarnings === 1 ? "warning" : "warnings"} to address. These won't block your resume but fixing them will boost your ATS score.`
+          : "All rules passed — your resume is well-optimized for ATS systems. Great job keeping the formatting clean and the sections standard!"
     }`,
-    impact: `We analyzed ${bulletCount} bullet points from your experience section. Your quantification rate is ${quantRate}% — ${
-      quantRate >= 50
-        ? "which shows you're backing your achievements with data. Keep it up!"
-        : "which means most of your bullets lack specific numbers or metrics. Adding quantifiable results (e.g., percentages, team sizes, time saved) will significantly strengthen your resume."
+
+    impact: `${greeting}we analyzed ${bulletCount} bullet points from your experience section. ${strongBullets > 0 ? `${strongBullets} of them scored 70+ — those are strong, well-written bullets. ` : ""}Your quantification rate is ${quantRate}% — ${
+      quantRate >= 60
+        ? "that's excellent! You're consistently backing your achievements with real numbers, which is exactly what recruiters look for."
+        : quantRate >= 40
+          ? "that's decent, but there's room to improve. Try adding specific numbers to more of your bullets — percentages, team sizes, revenue impact, or time saved. Even rough estimates like \"~30%\" are better than nothing."
+          : "which means most of your bullets are missing the numbers and metrics that make them stand out. Recruiters love seeing quantifiable impact — try adding specific stats like team size, percentage improvements, or revenue figures to at least half your bullets."
     }`,
+
     gap: gap
-      ? `We compared your resume against the job description and found ${results.matchedSkills?.length ?? 0} matching skills and ${results.missingSkills?.length ?? 0} gaps. ${
-          (results.missingSkills?.length ?? 0) > 0
-            ? "Adding the missing skills and keywords will help your resume rank higher in ATS systems and catch the recruiter's eye."
-            : "Excellent coverage — your skills align well with what the employer is looking for!"
+      ? `${greeting}we compared your resume against the job description and found ${matchedCount} matching ${matchedCount === 1 ? "skill" : "skills"} and ${missingCount} ${missingCount === 1 ? "gap" : "gaps"}. ${
+          missingCount > 3
+            ? `There are several key requirements from the JD that your resume doesn't cover yet. Adding these missing skills and keywords will significantly improve your resume's ranking in ATS systems and help catch the recruiter's eye.`
+            : missingCount > 0
+              ? `You're mostly aligned with the job requirements, but there ${missingCount === 1 ? "is" : "are"} ${missingCount} ${missingCount === 1 ? "skill" : "skills"} the employer is looking for that ${missingCount === 1 ? "isn't" : "aren't"} mentioned in your resume. Consider weaving ${missingCount === 1 ? "it" : "them"} into your experience descriptions where relevant.`
+              : "Excellent coverage! Your skills align very well with what the employer is looking for. Your resume should pass keyword filters with ease."
         }`
       : "Gap analysis is only available when a job description is provided.",
-    insights: `Additional observations from our AI quality review. These are extra findings that don't fall into the standard audit categories but are worth your attention.`,
+
+    insights: `${greeting ? `${greeting}here are ` : "Here are "}additional observations from our AI quality review — findings that go beyond the standard audit categories but are worth your attention.`,
   };
 
   return (
@@ -224,7 +243,7 @@ export default function AnalysisDetailPage() {
           All Analyses
         </Button>
         <h1 className="text-2xl font-bold tracking-tight">
-          {analysis.resumeFileName || "Analysis Results"}
+          {results?.title || analysis.resumeFileName || "Analysis Results"}
         </h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
           {new Date(analysis.createdAt).toLocaleDateString("en-US", {
