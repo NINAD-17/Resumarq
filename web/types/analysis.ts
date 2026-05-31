@@ -97,7 +97,9 @@ export interface AdditionalFinding {
 /** Complete analysis results written by the multi-agent graph */
 export interface AnalysisResults {
   scores: AnalysisScores;
-  summary: string; // Critic's 2-3 sentence conclusion
+  title: string; // LLM-generated short title, e.g. "MERN Full-Stack Developer Match"
+  candidateName: string; // Candidate name from the parsed resume
+  summary: string; // Critic's personalized conclusion
   atsAudit: ATSAuditResult;
   impactAudit: ImpactAuditResult;
   gapAnalysis: GapAnalysisResult | null; // null in resume-only mode
@@ -177,6 +179,8 @@ function normalizeResults(raw: any): AnalysisResults {
 
   return {
     scores: raw.scores,
+    title: raw.title || "",
+    candidateName: raw.candidateName || raw.candidate_name || "",
     summary: raw.summary,
     atsAudit: atsAudit ? normalizeATSAudit(atsAudit) : { rules: [] },
     impactAudit: impactAudit ? normalizeImpactAudit(impactAudit) : {

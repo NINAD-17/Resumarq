@@ -1,67 +1,87 @@
 "use client";
 
 /**
- * ScoreRing — animated circular progress indicator.
+ * ScoreRing — animated circular SVG progress indicator.
  *
- * Uses CSS conic-gradient for the arc and a CSS transition for the animation.
- * The ring fills from 0 to `value` over 1 second after mounting.
+ * Uses an SVG stroke-dashoffset animation for a smooth, reliable arc.
+ * Works in both light and dark mode via CSS variables.
  */
 
 import { useEffect, useState } from "react";
 
 interface ScoreRingProps {
   value: number; // 0-100
-  label: string;
-  color: string; // CSS variable, e.g. "var(--score-ats)"
-  size?: number; // px, default 100
+  label?: string;
+  size?: number; // px, default 120
+  strokeWidth?: number; // default 8
+  /** CSS color value or variable, e.g. "var(--score-ats)" */
+  color?: string;
 }
 
 export function ScoreRing({
   value,
   label,
-  color,
-  size = 100,
+  size = 120,
+  strokeWidth = 8,
+  color = "currentColor",
 }: ScoreRingProps) {
-  const [animatedValue, setAnimatedValue] = useState(0);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
-  // Animate from 0 to value on mount
-  useEffect(() => {
-    const timer = setTimeout(() => setAnimatedValue(value), 50);
-    return () => clearTimeout(timer);
-  }, [value]);
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const progress = mounted ? (value / 100) * circumference : 0;
+  const offset = circumference - progress;
 
-  const angle = (animatedValue / 100) * 360;
-  const strokeWidth = 6;
-  const trackColor = "var(--border)";
+  // Label based on score
+  const grade =
+    value >= 80 ? "Excellent" : value >= 60 ? "Good" : value >= 40 ? "Fair" : "Needs Work";
 
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="flex flex-col items-center gap-1.5">
+      <svg width={size} height={size} className="-rotate-90">
+        {/* Track */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          strokeWidth={strokeWidth}
+          className="stroke-border"
+        />
+        {/* Progress arc */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          style={{ transition: "stroke-dashoffset 1s ease-out" }}
+        />
+      </svg>
+      {/* Center text (positioned absolutely over the SVG) */}
       <div
-        className="relative flex items-center justify-center rounded-full"
-        style={{
-          width: size,
-          height: size,
-          background: `conic-gradient(${color} ${angle}deg, ${trackColor} ${angle}deg)`,
-          transition: "background 1s ease-out",
-        }}
+        className="absolute flex flex-col items-center justify-center"
+        style={{ width: size, height: size }}
       >
-        {/* Inner circle to create the ring effect */}
-        <div
-          className="flex items-center justify-center rounded-full bg-card"
-          style={{
-            width: size - strokeWidth * 2,
-            height: size - strokeWidth * 2,
-          }}
+        <span
+          className="text-2xl font-bold tabular-nums"
+          style={{ color }}
         >
-          <span
-            className="text-xl font-semibold tabular-nums"
-            style={{ color }}
-          >
-            {animatedValue}
+          {mounted ? value : 0}
+        </span>
+        {label && (
+          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            {label}
           </span>
-        </div>
+        )}
       </div>
-      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      {/* Grade label below */}
+      <span className="text-xs font-medium text-muted-foreground">{grade}</span>
     </div>
   );
 }

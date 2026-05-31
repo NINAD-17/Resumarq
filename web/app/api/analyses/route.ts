@@ -29,14 +29,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!jdText || typeof jdText !== "string" || jdText.trim().length === 0) {
-      return NextResponse.json(
-        { error: "Job description text is required" },
-        { status: 400 },
-      );
-    }
+    // jdText is optional — if provided, validate length
+    const cleanJdText = typeof jdText === "string" ? jdText.trim() : "";
 
-    if (jdText.length > MAX_JD_LENGTH) {
+    if (cleanJdText.length > MAX_JD_LENGTH) {
       return NextResponse.json(
         { error: `Job description must be under ${MAX_JD_LENGTH} characters` },
         { status: 400 },
@@ -57,7 +53,7 @@ export async function POST(request: NextRequest) {
     const analysis = await insertAnalysis({
       userId,
       resumeId,
-      jdText: jdText.trim(),
+      jdText: cleanJdText,
       status: "pending",
       createdAt: now,
       updatedAt: now,
@@ -69,7 +65,7 @@ export async function POST(request: NextRequest) {
       data: {
         analysisId: analysis._id.toHexString(),
         resumeS3Key: resume.s3Key,
-        jdText: jdText.trim(),
+        jdText: cleanJdText,
       },
     });
 
