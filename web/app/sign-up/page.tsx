@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signIn, signUp } from "@/lib/auth-client";
 import { validatePassword } from "@/lib/password-validation";
 import { Spinner } from "@/components/ui/spinner";
@@ -21,6 +21,9 @@ import { Separator } from "@/components/ui/separator";
 
 export default function SignUpPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const callbackUrl = searchParams.get("callbackUrl") || "/dashboard"; // default to dashboard
+
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -66,7 +69,7 @@ export default function SignUpPage() {
             if (result.error) {
                 setError(result.error.message || "Failed to create account");
             } else {
-                router.push("/");
+                router.push(callbackUrl);
                 router.refresh();
             }
         } catch (err) {
@@ -84,7 +87,7 @@ export default function SignUpPage() {
         try {
             await signIn.social({
                 provider: "google",
-                callbackURL: "/",
+                callbackURL: callbackUrl,
             });
         } catch (err) {
             setError("Failed to sign up with Google");

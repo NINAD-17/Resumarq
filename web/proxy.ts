@@ -41,7 +41,7 @@ export function proxy(request: NextRequest) {
 
   // Redirect to home if accessing auth routes with active session cookie
   if (isAuthRoute && sessionToken) {
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
   return NextResponse.next();

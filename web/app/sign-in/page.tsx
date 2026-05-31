@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "@/lib/auth-client";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -20,6 +20,9 @@ import { Separator } from "@/components/ui/separator";
 
 export default function SignInPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard"; // default to dashboard
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -39,7 +42,7 @@ export default function SignInPage() {
       if (result.error) {
         setError(result.error.message || "Invalid email or password");
       } else {
-        router.push("/"); // Redirect to home after sign in
+        router.push(callbackUrl); // Redirect to home or callback path
         router.refresh();
       }
     } catch (err) {
@@ -57,7 +60,7 @@ export default function SignInPage() {
     try {
       await signIn.social({
         provider: "google",
-        callbackURL: "/", // Where to redirect after Google sign in
+        callbackURL: callbackUrl, // Where to redirect after Google sign in
       });
     } catch (err) {
       setError("Failed to sign in with Google");
