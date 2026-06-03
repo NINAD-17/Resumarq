@@ -29,7 +29,8 @@ export function proxy(request: NextRequest) {
   // Check if it's the home page (exact match) or other protected routes
   const isHomePage = pathname === "/";
   const isProtectedRoute =
-    isHomePage || protectedRoutes.some((route) => pathname.startsWith(route));
+    // isHomePage || protectedRoutes.some((route) => pathname.startsWith(route));
+    protectedRoutes.some((route) => pathname.startsWith(route));
   const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
 
   // Redirect to sign-in if accessing protected route without session cookie
