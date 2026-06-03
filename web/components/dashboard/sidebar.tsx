@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FilePlus2, ClipboardList, LogOut, Menu, X } from "lucide-react";
+import { FilePlus2, ClipboardList, LogOut, Menu, X, Lock, LogIn, Sparkles } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
@@ -22,7 +22,12 @@ const navItems = [
   },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  demoMode?: boolean;
+  onActionClick?: (action: string) => void;
+}
+
+export function Sidebar({ demoMode = false, onActionClick }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -32,11 +37,19 @@ export function Sidebar() {
     router.push("/sign-in");
   };
 
+  const handleDemoSignIn = () => {
+    if (onActionClick) {
+      onActionClick("signin");
+    } else {
+      router.push("/sign-in");
+    }
+  };
+
   const sidebarContent = (
     <>
       {/* Logo */}
       <div className="flex h-14 items-center justify-between px-5">
-        <Link href="/dashboard" className="flex items-center gap-2" onClick={() => setMobileOpen(false)}>
+        <Link href={demoMode ? "/demo" : "/dashboard"} className="flex items-center gap-2" onClick={() => setMobileOpen(false)}>
           <span className="text-lg font-semibold tracking-tight text-foreground">
             Resumarq
           </span>
@@ -53,10 +66,30 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 space-y-1 px-3 pt-2">
         {navItems.map((item) => {
-          const isActive =
+          const isActive = !demoMode && (
             item.href === "/dashboard"
               ? pathname === "/dashboard"
-              : pathname.startsWith(item.href);
+              : pathname.startsWith(item.href)
+          );
+
+          if (demoMode) {
+            return (
+              <button
+                key={item.href}
+                onClick={() => {
+                  setMobileOpen(false);
+                  onActionClick?.(item.href);
+                }}
+                className="w-full flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-colors text-muted-foreground/60 hover:bg-accent/50 hover:text-muted-foreground cursor-not-allowed group"
+              >
+                <div className="flex items-center gap-3">
+                  <item.icon className="size-[18px]" />
+                  {item.label}
+                </div>
+                <Lock className="size-3.5 opacity-50 group-hover:opacity-100 transition-opacity" />
+              </button>
+            );
+          }
 
           return (
             <Link
@@ -75,6 +108,24 @@ export function Sidebar() {
             </Link>
           );
         })}
+        
+        {demoMode && (
+          <div className="pt-2 mt-2 border-t border-border/50">
+            <Link
+              href="/demo"
+              onClick={() => setMobileOpen(false)}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                pathname === "/demo" || pathname.startsWith("/demo/analyses")
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+              )}
+            >
+              <Sparkles className="size-[18px]" />
+              Demo Analysis
+            </Link>
+          </div>
+        )}
       </nav>
 
       {/* Bottom section */}
@@ -83,13 +134,23 @@ export function Sidebar() {
           <span className="text-xs text-muted-foreground">Theme</span>
           <ThemeToggle />
         </div>
-        <button
-          onClick={handleSignOut}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground cursor-pointer"
-        >
-          <LogOut className="size-[18px]" />
-          Sign Out
-        </button>
+        {demoMode ? (
+          <button
+            onClick={handleDemoSignIn}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10 cursor-pointer"
+          >
+            <LogIn className="size-[18px]" />
+            Sign In
+          </button>
+        ) : (
+          <button
+            onClick={handleSignOut}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground cursor-pointer"
+          >
+            <LogOut className="size-[18px]" />
+            Sign Out
+          </button>
+        )}
       </div>
     </>
   );
