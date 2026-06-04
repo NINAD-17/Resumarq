@@ -6,17 +6,41 @@ import { getResumeById } from "@/lib/db/resumes";
 import { toAnalysisResponse } from "@/types/analysis";
 import { inngest } from "@/inngest/client";
 
-const MAX_JD_LENGTH = 10_000; // Characters
+const MAX_JD_LENGTH = 10000; // Characters
 
 /**
  * POST /api/analyses — Start a new analysis.
  *
  * Body (JSON): { resumeId: string, jdText: string }
+ * Supports both Better Auth sessions and recruiter sessions.
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await requireSession();
-    const userId = session.user.id;
+    let userId: string;
+    let recruiterInfo: { ip: string; token: string } | null = null;
+
+    try {
+      const session = await requireSession();
+      userId = session.user.id;
+    } catch {
+      // Check for recruiter session as fallback
+      const { getRecruiterSession } = await import("@/lib/recruiter-session");
+      const recruiterSession = await getRecruiterSession();
+      if (!recruiterSession) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      // Check if recruiter hasn't already used their free analysis
+      const { hasUsedFreeAnalysis } = await import("@/lib/db/demo-access");
+      const used = await hasUsedFreeAnalysis(recruiterSession.ip, recruiterSession.token);
+      if (used) {
+        return NextResponse.json(
+          { error: "Free analysis already used. Sign in for more." },
+          { status: 403 },
+        );
+      }
+      userId = `recruiter-${recruiterSession.ip}`;
+      recruiterInfo = { ip: recruiterSession.ip, token: recruiterSession.token };
+    }
 
     const body = await request.json();
     const { resumeId, jdText } = body;
@@ -68,6 +92,24 @@ export async function POST(request: NextRequest) {
         jdText: cleanJdText,
       },
     });
+
+    // If this was a recruiter, mark their free analysis as used
+    // and update the session cookie with the analysisId
+    if (recruiterInfo) {
+      const { markDemoAccessUsed } = await import("@/lib/db/demo-access");
+      const { setRecruiterSession } = await import("@/lib/recruiter-session");
+      const analysisIdStr = analysis._id.toHexString();
+      await markDemoAccessUsed(
+        recruiterInfo.ip,
+        recruiterInfo.token,
+        analysisIdStr,
+      );
+      await setRecruiterSession({
+        ip: recruiterInfo.ip,
+        token: recruiterInfo.token,
+        analysisId: analysisIdStr,
+      });
+    }
 
     return NextResponse.json(
       toAnalysisResponse(analysis, resume.fileName),

@@ -11,11 +11,33 @@ const ALLOWED_TYPES = ["application/pdf"];
  * POST /api/resumes — Upload a resume PDF to S3 and save metadata.
  *
  * Expects multipart/form-data with a "file" field.
+ * Supports both Better Auth sessions and recruiter sessions.
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await requireSession();
-    const userId = session.user.id;
+    let userId: string;
+
+    try {
+      const session = await requireSession();
+      userId = session.user.id;
+    } catch {
+      // Check for recruiter session as fallback
+      const { getRecruiterSession } = await import("@/lib/recruiter-session");
+      const recruiterSession = await getRecruiterSession();
+      if (!recruiterSession) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      // Check if recruiter hasn't already used their free analysis
+      const { hasUsedFreeAnalysis } = await import("@/lib/db/demo-access");
+      const used = await hasUsedFreeAnalysis(recruiterSession.ip, recruiterSession.token);
+      if (used) {
+        return NextResponse.json(
+          { error: "Free analysis already used. Sign in for more." },
+          { status: 403 },
+        );
+      }
+      userId = `recruiter-${recruiterSession.ip}`;
+    }
 
     const formData = await request.formData();
     const file = formData.get("file") as File | null;

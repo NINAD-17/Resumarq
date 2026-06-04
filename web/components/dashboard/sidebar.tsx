@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FilePlus2, ClipboardList, LogOut, Menu, X, Lock, LogIn, Sparkles } from "lucide-react";
+import { FilePlus2, ClipboardList, LogOut, Menu, X, Lock, LogIn, Sparkles, FileCheck } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
@@ -25,9 +25,10 @@ const navItems = [
 interface SidebarProps {
   demoMode?: boolean;
   onActionClick?: (action: string) => void;
+  recruiterAnalysisId?: string | null;
 }
 
-export function Sidebar({ demoMode = false, onActionClick }: SidebarProps) {
+export function Sidebar({ demoMode = false, onActionClick, recruiterAnalysisId }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -124,6 +125,23 @@ export function Sidebar({ demoMode = false, onActionClick }: SidebarProps) {
               <Sparkles className="size-[18px]" />
               Demo Analysis
             </Link>
+
+            {/* Show link to recruiter's own analysis when available */}
+            {recruiterAnalysisId && (
+              <Link
+                href={`/dashboard/analyses/${recruiterAnalysisId}`}
+                onClick={() => setMobileOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                  pathname === `/dashboard/analyses/${recruiterAnalysisId}`
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                )}
+              >
+                <FileCheck className="size-[18px]" />
+                Your Analysis
+              </Link>
+            )}
           </div>
         )}
       </nav>

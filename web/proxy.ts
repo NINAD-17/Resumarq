@@ -25,6 +25,8 @@ export function proxy(request: NextRequest) {
 
   // Get session token from cookie (Better Auth default cookie name)
   const sessionToken = request.cookies.get("better-auth.session_token")?.value;
+  // Also check for recruiter session cookie
+  const recruiterToken = request.cookies.get("recruiter-session")?.value;
 
   // Check if it's the home page (exact match) or other protected routes
   const isHomePage = pathname === "/";
@@ -33,8 +35,8 @@ export function proxy(request: NextRequest) {
     protectedRoutes.some((route) => pathname.startsWith(route));
   const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
 
-  // Redirect to sign-in if accessing protected route without session cookie
-  if (isProtectedRoute && !sessionToken) {
+  // Redirect to sign-in if accessing protected route without any session cookie
+  if (isProtectedRoute && !sessionToken && !recruiterToken) {
     const signInUrl = new URL("/sign-in", request.url);
     signInUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(signInUrl);

@@ -50,6 +50,7 @@ export default function AnalysisDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<Section>("summary");
+  const [isRecruiter, setIsRecruiter] = useState(false);
 
   const fetchAnalysis = async () => {
     try {
@@ -69,6 +70,14 @@ export default function AnalysisDetailPage() {
   useEffect(() => {
     fetchAnalysis();
   }, [id]);
+
+  // Check if this is a recruiter session
+  useEffect(() => {
+    fetch("/api/recruiter/check")
+      .then((res) => res.json())
+      .then((data) => setIsRecruiter(!!data.isRecruiter))
+      .catch(() => {});
+  }, []);
 
   // Poll while processing
   useEffect(() => {
@@ -158,7 +167,7 @@ export default function AnalysisDetailPage() {
               className="mt-8 cursor-pointer"
               onClick={() => router.push("/dashboard")}
             >
-              Start New Analysis
+              {isRecruiter ? "Back to Dashboard" : "Start New Analysis"}
             </Button>
           </CardContent>
         </Card>
@@ -236,11 +245,11 @@ export default function AnalysisDetailPage() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => router.push("/dashboard/analyses")}
+          onClick={() => router.push(isRecruiter ? "/dashboard" : "/dashboard/analyses")}
           className="mb-3 cursor-pointer"
         >
           <ArrowLeft className="mr-2 size-4" />
-          All Analyses
+          {isRecruiter ? "Back to Dashboard" : "All Analyses"}
         </Button>
         <h1 className="text-2xl font-bold tracking-tight">
           {results?.title || analysis.resumeFileName || "Analysis Results"}

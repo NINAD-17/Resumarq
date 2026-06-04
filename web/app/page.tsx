@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Shield, Zap, Target, Play } from "lucide-react";
+import { ArrowRight, CheckCircle2, Shield, Zap, Target, Play, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/landing/header";
+import { RecruiterCTA } from "@/components/landing/recruiter-cta";
 import { getServerSession } from "@/lib/session";
 
 interface PageProps {
@@ -11,6 +12,7 @@ interface PageProps {
 export default async function LandingPage({ searchParams }: PageProps) {
   const resolvedParams = await searchParams;
   const token = resolvedParams.token;
+  const errorParam = typeof resolvedParams.error === "string" ? resolvedParams.error : undefined;
   
   const isRecruiter = 
     token && 
@@ -27,6 +29,18 @@ export default async function LandingPage({ searchParams }: PageProps) {
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080801a_1px,transparent_1px),linear-gradient(to_bottom,#8080801a_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none -z-10 [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
 
       <Header session={session} />
+
+      {/* Error banner for recruiter init failures */}
+      {errorParam && (
+        <div className="fixed top-16 left-0 right-0 z-30 px-4 pt-2">
+          <div className="mx-auto max-w-xl rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive flex items-center gap-2">
+            <AlertTriangle className="size-4 shrink-0" />
+            {errorParam === "invalid_token"
+              ? "Invalid recruiter access link. Please check the URL you received."
+              : "Something went wrong initializing your recruiter session. Please try again."}
+          </div>
+        </div>
+      )}
 
       <main className="flex-1 pt-14 md:pt-22">
         {/* ─── Hero Section ───────────────────────────────────────── */}
@@ -47,13 +61,7 @@ export default async function LandingPage({ searchParams }: PageProps) {
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
               {isRecruiter && !isLoggedIn && (
-                <div className="w-full sm:w-auto p-1 rounded-full bg-gradient-to-r from-score-ats via-score-match to-score-impact animate-pulse">
-                  <Link href={`/api/demo/init?token=${token}`} className="block">
-                    <Button size="lg" className="w-full sm:w-auto text-base h-12 px-8 bg-background text-foreground hover:bg-background/90 cursor-pointer rounded-full border-none">
-                      Free for Recruiters – 1 Analysis
-                    </Button>
-                  </Link>
-                </div>
+                <RecruiterCTA token={token as string} />
               )}
               
               {!isRecruiter && (

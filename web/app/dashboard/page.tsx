@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, FileText, ArrowRight, X, FileSearch, GitCompareArrows } from "lucide-react";
+import Link from "next/link";
+import { Upload, FileText, ArrowRight, X, FileSearch, GitCompareArrows, Info, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -25,8 +26,23 @@ export default function NewAnalysisPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Recruiter state
+  const [recruiterStatus, setRecruiterStatus] = useState<{
+    isRecruiter: boolean;
+    canAnalyze: boolean;
+    analysisId?: string | null;
+  } | null>(null);
+
   // Step tracking — simple 2-step flow
   const [step, setStep] = useState<1 | 2>(1);
+
+  // Check recruiter status on mount
+  useEffect(() => {
+    fetch("/api/recruiter/check")
+      .then((res) => res.json())
+      .then((data) => setRecruiterStatus(data))
+      .catch(() => setRecruiterStatus({ isRecruiter: false, canAnalyze: false }));
+  }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -117,7 +133,50 @@ export default function NewAnalysisPage() {
 
   return (
     <div className="space-y-8">
-      {/* Page header */}
+      {/* Recruiter status banners */}
+      {recruiterStatus?.isRecruiter && recruiterStatus.canAnalyze && (
+        <div className="rounded-lg border border-score-ats/30 bg-score-ats/5 px-4 py-3 text-sm flex items-start gap-3">
+          <Info className="size-5 shrink-0 text-score-ats mt-0.5" />
+          <div>
+            <p className="font-medium text-foreground">Welcome, Recruiter!</p>
+            <p className="text-muted-foreground mt-0.5">
+              You have <strong>1 free analysis</strong> available. Upload a resume and paste a job description to see Resumarq in action.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {recruiterStatus?.isRecruiter && !recruiterStatus.canAnalyze && (
+        <Card className="border-primary/20">
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <Info className="mb-3 size-10 text-primary/50" />
+            <h2 className="text-xl font-semibold">Free Analysis Used</h2>
+            <p className="mt-2 max-w-md text-sm text-muted-foreground">
+              You&apos;ve used your complimentary analysis. Sign up for a full account to run unlimited analyses.
+            </p>
+            <div className="mt-6 flex flex-col sm:flex-row items-center gap-3">
+              {recruiterStatus.analysisId && (
+                <Button
+                  className="cursor-pointer gap-2"
+                  onClick={() => router.push(`/dashboard/analyses/${recruiterStatus.analysisId}`)}
+                >
+                  <ExternalLink className="size-4" />
+                  View Your Analysis
+                </Button>
+              )}
+              <Link href="/sign-up?callbackUrl=/dashboard">
+                <Button variant={recruiterStatus.analysisId ? "outline" : "default"} className="cursor-pointer">
+                  Create an Account
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Page header — hidden when recruiter analysis is exhausted */}
+      {!(recruiterStatus?.isRecruiter && !recruiterStatus.canAnalyze) && (
+      <>
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
           New Analysis
@@ -320,6 +379,8 @@ export default function NewAnalysisPage() {
             </Button>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );
