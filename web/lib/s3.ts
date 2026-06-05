@@ -6,19 +6,31 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-if (!process.env.AWS_ACCESS_KEY_ID) {
-  throw new Error("Missing AWS_ACCESS_KEY_ID in environment variables");
+let s3Client: S3Client | null = null;
+
+function getS3Client(): S3Client {
+  if (!s3Client) {
+    if (!process.env.AWS_ACCESS_KEY_ID) {
+      throw new Error("Missing AWS_ACCESS_KEY_ID in environment variables");
+    }
+    s3Client = new S3Client({
+      region: process.env.AWS_REGION!,
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+      },
+    });
+  }
+  return s3Client;
 }
 
-const s3 = new S3Client({
-  region: process.env.AWS_REGION!,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
-
-const BUCKET = process.env.AWS_S3_BUCKET_NAME!;
+function getBucketName(): string {
+  const bucket = process.env.AWS_S3_BUCKET_NAME;
+  if (!bucket) {
+    throw new Error("Missing AWS_S3_BUCKET_NAME in environment variables");
+  }
+  return bucket;
+}
 
 /**
  * Upload a file buffer to S3.
@@ -34,9 +46,9 @@ export async function uploadToS3(
 ): Promise<string> {
   const key = `resumes/${userId}/${Date.now()}-${sanitizeFileName(fileName)}`;
 
-  await s3.send(
+  await getS3Client().send(
     new PutObjectCommand({
-      Bucket: BUCKET,
+      Bucket: getBucketName(),
       Key: key,
       Body: buffer,
       ContentType: contentType,
@@ -50,9 +62,9 @@ export async function uploadToS3(
  * Delete a file from S3 by its key.
  */
 export async function deleteFromS3(key: string): Promise<void> {
-  await s3.send(
+  await getS3Client().send(
     new DeleteObjectCommand({
-      Bucket: BUCKET,
+      Bucket: getBucketName(),
       Key: key,
     }),
   );
@@ -67,11 +79,11 @@ export async function getPresignedDownloadUrl(
   expiresInSeconds = 3600,
 ): Promise<string> {
   const command = new GetObjectCommand({
-    Bucket: BUCKET,
+    Bucket: getBucketName(),
     Key: key,
   });
 
-  return getSignedUrl(s3, command, { expiresIn: expiresInSeconds });
+  return getSignedUrl(getS3Client(), command, { expiresIn: expiresInSeconds });
 }
 
 /**
@@ -80,9 +92,9 @@ export async function getPresignedDownloadUrl(
 export async function getFileFromS3(
   key: string,
 ): Promise<{ buffer: Buffer; contentType: string }> {
-  const response = await s3.send(
+  const response = await getS3Client().send(
     new GetObjectCommand({
-      Bucket: BUCKET,
+      Bucket: getBucketName(),
       Key: key,
     }),
   );

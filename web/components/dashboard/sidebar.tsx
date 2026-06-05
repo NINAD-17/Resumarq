@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FilePlus2, ClipboardList, LogOut, Menu, X, Lock, LogIn, Sparkles, FileCheck } from "lucide-react";
+import { FilePlus2, ClipboardList, LogOut, Menu, X, Lock, LogIn, Sparkles, FileCheck, Zap } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
@@ -50,8 +50,11 @@ export function Sidebar({ demoMode = false, onActionClick, recruiterAnalysisId }
     <>
       {/* Logo */}
       <div className="flex h-14 items-center justify-between px-5">
-        <Link href={demoMode ? "/demo" : "/dashboard"} className="flex items-center gap-2" onClick={() => setMobileOpen(false)}>
-          <span className="text-lg font-semibold tracking-tight text-foreground">
+        <Link href={demoMode ? "/demo" : "/dashboard"} className="flex items-center gap-2.5 group" onClick={() => setMobileOpen(false)}>
+          <div className="size-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+            <Zap className="size-4 fill-current" />
+          </div>
+          <span className="text-lg font-bold tracking-tight text-foreground">
             Resumarq
           </span>
         </Link>

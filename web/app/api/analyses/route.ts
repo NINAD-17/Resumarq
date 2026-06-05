@@ -22,7 +22,21 @@ export async function POST(request: NextRequest) {
     try {
       const session = await requireSession();
       userId = session.user.id;
-    } catch {
+
+      // Deduct quota for authenticated users
+      const { deductQuota } = await import("@/lib/db/user-profiles");
+      const hasQuota = await deductQuota(userId);
+      if (!hasQuota) {
+        return NextResponse.json(
+          { error: "Insufficient quota. Please upgrade to continue.", code: "QUOTA_EXHAUSTED" },
+          { status: 402 }
+        );
+      }
+    } catch (e: unknown) {
+      if (e instanceof Error && (e as any).code === "QUOTA_EXHAUSTED") {
+        throw e;
+      }
+      
       // Check for recruiter session as fallback
       const { getRecruiterSession } = await import("@/lib/recruiter-session");
       const recruiterSession = await getRecruiterSession();

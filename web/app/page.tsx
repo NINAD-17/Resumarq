@@ -3,6 +3,7 @@ import { ArrowRight, CheckCircle2, Shield, Zap, Target, Play, AlertTriangle } fr
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/landing/header";
 import { RecruiterCTA } from "@/components/landing/recruiter-cta";
+import { HowItWorks } from "@/components/landing/how-it-works";
 import { getServerSession } from "@/lib/session";
 
 interface PageProps {
@@ -44,10 +45,43 @@ export default async function LandingPage({ searchParams }: PageProps) {
 
       <main className="flex-1 pt-14 md:pt-22">
         {/* ─── Hero Section ───────────────────────────────────────── */}
-        <section className="relative px-4 pt-8 pb-16 md:pt-14 md:pb-22 overflow-hidden flex flex-col items-center text-center">
-          {/* Subtle minimal background glow */}
-          <div className="absolute top-0 left-0 right-0 h-[500px] bg-gradient-to-b from-primary/5 to-transparent pointer-events-none -z-10" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] pointer-events-none landing-glow-pulse" />
+        <section className="relative px-4 pt-16 pb-20 md:pt-24 md:pb-32 overflow-hidden flex flex-col items-center text-center">
+          {/* Subtle minimal background dot grid pattern covering the whole hero section */}
+          <div className="absolute inset-0 hero-dot-grid pointer-events-none -z-10" />
+          
+          {/* Center glowing gradient blob positioned directly behind the text */}
+          <div className="absolute top-[10%] left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-gradient-to-r from-emerald-500/25 via-blue-500/20 to-amber-500/25 dark:from-emerald-500/20 dark:via-blue-500/15 dark:to-amber-500/20 rounded-full blur-[130px] pointer-events-none landing-glow-pulse -z-10" />
+
+          {/* Floating badges for high-effort visual polish */}
+          <div className="absolute left-[6%] top-[28%] hidden lg:flex items-center gap-3 bg-card/85 backdrop-blur-md border border-border/80 p-3.5 rounded-2xl shadow-xl animate-float-slow select-none z-10">
+            <div className="size-8 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+              <Shield className="size-5" />
+            </div>
+            <div className="text-left">
+              <p className="text-xs font-bold text-foreground">ATS Compliance</p>
+              <p className="text-[10px] text-muted-foreground font-semibold">Audit Passed</p>
+            </div>
+          </div>
+
+          <div className="absolute right-[6%] top-[22%] hidden lg:flex items-center gap-3 bg-card/85 backdrop-blur-md border border-border/80 p-3.5 rounded-2xl shadow-xl animate-float-delayed select-none z-10">
+            <div className="size-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+              <Target className="size-5" />
+            </div>
+            <div className="text-left">
+              <p className="text-xs font-bold text-foreground">JD Matching</p>
+              <p className="text-[10px] text-muted-foreground font-semibold">94% Fit Score</p>
+            </div>
+          </div>
+
+          <div className="absolute left-[12%] bottom-[22%] hidden lg:flex items-center gap-3 bg-card/85 backdrop-blur-md border border-border/80 p-3.5 rounded-2xl shadow-xl animate-float-slow select-none z-10" style={{ animationDelay: "1.5s" }}>
+            <div className="size-8 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="size-5" />
+            </div>
+            <div className="text-left">
+              <p className="text-xs font-bold text-foreground">AI Rewriter</p>
+              <p className="text-[10px] text-muted-foreground font-semibold">Impact Optimized</p>
+            </div>
+          </div>
 
           <div className="container relative z-10 max-w-4xl mx-auto space-y-6 landing-fade-up">
             <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight leading-tight">
@@ -156,75 +190,7 @@ export default async function LandingPage({ searchParams }: PageProps) {
         </section>
 
         {/* ─── How it Works ───────────────────────────────────────── */}
-        <section id="how-it-works" className="py-24">
-          <div className="container mx-auto px-4 md:px-6">
-            <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-20">
-              <div className="flex-1 space-y-10">
-                <h2 className="text-2xl md:text-4xl font-bold tracking-tight">How Resumarq Works</h2>
-                
-                <div className="space-y-8">
-                  {[
-                    { title: "Upload your Resume", desc: "Upload your PDF. We securely parse the text while preserving your privacy." },
-                    { title: "Add a Target Job", desc: "Optional: Paste the job description you're aiming for to get highly tailored feedback." },
-                    { title: "AI Agents Go to Work", desc: "Our specialized LLM agents debate and evaluate your resume from multiple angles." },
-                    { title: "Get Actionable Feedback", desc: "Review your scores, fix critical ATS errors, and rewrite weak bullets." }
-                  ].map((step, i) => (
-                    <div key={i} className="flex gap-5 group">
-                      <div className="shrink-0 size-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-base group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                        {i + 1}
-                      </div>
-                      <div>
-                        <h4 className="text-lg font-bold mb-1">{step.title}</h4>
-                        <p className="text-muted-foreground text-sm leading-relaxed">{step.desc}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="flex-1 w-full relative">
-                {/* Dashboard Preview */}
-                <div className="bg-card rounded-2xl border border-border shadow-xl overflow-hidden relative aspect-square md:aspect-[4/3] flex flex-col p-6">
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
-                  
-                  <div className="relative z-10 w-full h-full flex flex-col space-y-4">
-                    <div className="flex items-center gap-3 border-b border-border/50 pb-4">
-                      <div className="size-8 rounded bg-primary/20 flex items-center justify-center text-primary">
-                        <CheckCircle2 className="size-5" />
-                      </div>
-                      <div className="space-y-1">
-                        <div className="h-3 w-24 bg-foreground/80 rounded" />
-                        <div className="h-2 w-16 bg-muted-foreground/50 rounded" />
-                      </div>
-                    </div>
-
-                    <div className="flex-1 flex flex-col justify-center space-y-6 px-4">
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-2">
-                          <div className="h-4 w-32 bg-foreground/90 rounded" />
-                          <div className="h-3 w-48 bg-muted-foreground/50 rounded" />
-                        </div>
-                        <div className="text-4xl font-extrabold text-score-ats">85</div>
-                      </div>
-
-                      <div className="space-y-3">
-                        <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                          <div className="h-full bg-score-ats w-[85%] rounded-full" />
-                        </div>
-                        <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                          <div className="h-full bg-score-impact w-[72%] rounded-full" />
-                        </div>
-                        <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                          <div className="h-full bg-score-match w-[64%] rounded-full" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+        <HowItWorks />
 
         {/* ─── Pricing Section ────────────────────────────────────── */}
         <section id="pricing" className="py-24 bg-muted/30 border-y border-border/50">

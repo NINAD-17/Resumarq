@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { PaymentModal } from "@/components/dashboard/payment-modal";
 
 type AnalysisMode = "resume-only" | "resume-jd";
 
@@ -36,12 +37,24 @@ export default function NewAnalysisPage() {
   // Step tracking — simple 2-step flow
   const [step, setStep] = useState<1 | 2>(1);
 
-  // Check recruiter status on mount
+  // Quota state
+  const [quota, setQuota] = useState<{ quotaRemaining: number; plan: string } | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+
+  // Check recruiter status and quota on mount
   useEffect(() => {
     fetch("/api/recruiter/check")
       .then((res) => res.json())
       .then((data) => setRecruiterStatus(data))
       .catch(() => setRecruiterStatus({ isRecruiter: false, canAnalyze: false }));
+
+    fetch("/api/user/quota")
+      .then((res) => {
+        if (res.ok) return res.json();
+        throw new Error();
+      })
+      .then((data) => setQuota(data))
+      .catch(() => setQuota(null));
   }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -83,11 +96,20 @@ export default function NewAnalysisPage() {
     (analysisMode === "resume-only" || jdText.trim().length > 0) &&
     !isSubmitting;
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (overrideQuota?: any) => {
     if (!canSubmit) return;
 
     setIsSubmitting(true);
     setError(null);
+
+    const qRemaining = typeof overrideQuota === "number" ? overrideQuota : (quota?.quotaRemaining ?? 0);
+
+    // Guard: Check client-side quota before uploading or processing
+    if (!recruiterStatus?.isRecruiter && quota && qRemaining <= 0) {
+      setShowPaymentModal(true);
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       // Step 1: Upload resume
@@ -118,6 +140,11 @@ export default function NewAnalysisPage() {
 
       if (!analysisRes.ok) {
         const data = await analysisRes.json();
+        if (data.code === "QUOTA_EXHAUSTED") {
+          setShowPaymentModal(true);
+          setIsSubmitting(false);
+          return;
+        }
         throw new Error(data.error || "Failed to create analysis");
       }
 
@@ -174,16 +201,41 @@ export default function NewAnalysisPage() {
         </Card>
       )}
 
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <PaymentModal
+          onClose={() => setShowPaymentModal(false)}
+          onSuccess={(newQuotaRemaining) => {
+            setShowPaymentModal(false);
+            if (newQuotaRemaining !== undefined) {
+              setQuota((prev) =>
+                prev ? { ...prev, quotaRemaining: newQuotaRemaining } : null
+              );
+            }
+            handleSubmit(newQuotaRemaining); // Auto-retry with updated quota
+          }}
+        />
+      )}
+
       {/* Page header — hidden when recruiter analysis is exhausted */}
       {!(recruiterStatus?.isRecruiter && !recruiterStatus.canAnalyze) && (
       <>
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          New Analysis
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Upload your resume to get AI-powered insights and actionable feedback.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            New Analysis
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Upload your resume to get AI-powered insights and actionable feedback.
+          </p>
+        </div>
+        {/* Quota Badge for regular users */}
+        {!recruiterStatus?.isRecruiter && quota && (
+          <div className="rounded-full bg-accent px-3 py-1 text-sm font-medium border border-border flex items-center gap-2">
+            <span className="size-2 rounded-full bg-primary" />
+            {quota.quotaRemaining} analyses remaining
+          </div>
+        )}
       </div>
 
       {/* Step indicator */}
