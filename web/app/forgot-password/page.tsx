@@ -31,7 +31,7 @@ export default function ForgotPasswordPage() {
 
         try {
             // better-auth v1 API for request password reset
-            const result = await authClient.forgetPassword({
+            const result = await authClient.requestPasswordReset({
                 email,
                 redirectTo: "/reset-password", // Where user lands after clicking email link
             });
