@@ -22,6 +22,14 @@ class Settings(BaseSettings):
     # Google Gemini
     google_api_key: str
 
+    # Model names — override via .env to swap models without code changes
+    gemini_parser_model: str = "gemini-3.5-flash"   # Resume/JD parsing (multimodal)
+    gemini_audit_model: str = "gemini-3.5-flash"    # ATS/Impact/Gap audits
+    gemini_critic_model: str = "gemini-3.5-flash"   # Critic (highest reasoning)
+
+    # CORS settings
+    frontend_url: str = "http://localhost:3000"
+
     # Internal API key — must match AGENT_SERVER_KEY in Next.js
     api_key: str
 

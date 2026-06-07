@@ -14,6 +14,8 @@ from pydantic import BaseModel, Field
 class AnalyzeRequest(BaseModel):
     """Incoming request from Inngest via Next.js."""
 
+    # model_config: Allow both snake_case field names and camelCase aliases (e.g. analysis_id or analysisId) 
+    # to populate the model, ensuring compatibility between Python code and JSON payloads.
     model_config = {"populate_by_name": True}
 
     analysis_id: str = Field(alias="analysisId")
@@ -57,3 +59,9 @@ class AnalyzeResponse(BaseModel):
     # Convenience fields extracted from gap_analysis
     matched_skills: list[str] = []  # Required skills present in resume
     missing_skills: list[str] = []  # Required skills absent from resume
+
+
+class AnalyzeAccepted(BaseModel):
+    """Response returned immediately when analysis is accepted for background processing."""
+    status: str = "accepted"
+    analysis_id: str

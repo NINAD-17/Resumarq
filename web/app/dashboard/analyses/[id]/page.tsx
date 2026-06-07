@@ -83,8 +83,7 @@ export default function AnalysisDetailPage() {
   useEffect(() => {
     if (
       !analysis ||
-      analysis.status === "completed" ||
-      analysis.status === "failed"
+      !["pending", "processing", "extracting_data", "analyzing_ats", "evaluating_impact", "comparing_gap", "generating_feedback", "compiling_report"].includes(analysis.status)
     )
       return;
 
@@ -116,8 +115,24 @@ export default function AnalysisDetailPage() {
     );
   }
 
+  const isProcessing = ["pending", "processing", "extracting_data", "analyzing_ats", "evaluating_impact", "comparing_gap", "generating_feedback", "compiling_report"].includes(analysis?.status || "");
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case "pending": return "Queued for processing...";
+      case "processing": return "Starting AI Agents...";
+      case "extracting_data": return "Extracting Resume Data...";
+      case "analyzing_ats": return "Running ATS Audit...";
+      case "evaluating_impact": return "Evaluating Impact...";
+      case "comparing_gap": return "Performing Gap Analysis...";
+      case "generating_feedback": return "Generating Feedback...";
+      case "compiling_report": return "Compiling Report...";
+      default: return "Processing Analysis...";
+    }
+  };
+
   // ─── Processing ─────────────────────────────────────────────────
-  if (analysis.status === "pending" || analysis.status === "processing") {
+  if (isProcessing) {
     return (
       <div className="space-y-6">
         <Button variant="ghost" size="sm" onClick={() => router.back()} className="cursor-pointer">
@@ -136,9 +151,7 @@ export default function AnalysisDetailPage() {
             </p>
             <div className="mt-8 flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
-              {analysis.status === "pending"
-                ? "Queued for processing..."
-                : "Agents are working..."}
+              {getStatusText(analysis.status)}
             </div>
           </CardContent>
         </Card>

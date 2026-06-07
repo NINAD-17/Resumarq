@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # ─── LLM with Pydantic structured output ─────────────────────────
 
 llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
+    model=settings.gemini_audit_model,
     google_api_key=settings.google_api_key,
     temperature=0.1,
 )
@@ -47,7 +47,7 @@ def _load_prompt() -> str:
         return GAP_ANALYSIS_PROMPT
     except ImportError:
         logger.warning("Production prompt not found — using example prompt")
-        from prompts.example.gap_analysis import GAP_ANALYSIS_PROMPT
+        from prompts.gap_analysis import GAP_ANALYSIS_PROMPT
 
         return GAP_ANALYSIS_PROMPT
 

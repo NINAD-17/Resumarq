@@ -10,6 +10,12 @@ async function getCollection(): Promise<Collection<ResumeDocument>> {
   return client.db().collection<ResumeDocument>(COLLECTION);
 }
 
+/** Ensure indexes exist on the resumes collection */
+export async function ensureResumeIndexes(): Promise<void> {
+  const col = await getCollection();
+  await col.createIndex({ userId: 1, uploadedAt: -1 });
+}
+
 export async function insertResume(
   data: ResumeInsert,
 ): Promise<ResumeDocument> {

@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # ─── LLM with Pydantic structured output ─────────────────────────
 
 llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
+    model=settings.gemini_critic_model,
     google_api_key=settings.google_api_key,
     temperature=0.1,
 )
@@ -47,7 +47,7 @@ def _load_prompt() -> str:
         return CRITIC_PROMPT
     except ImportError:
         logger.warning("Production prompt not found — using example prompt")
-        from prompts.example.critic import CRITIC_PROMPT
+        from prompts.critic import CRITIC_PROMPT
 
         return CRITIC_PROMPT
 

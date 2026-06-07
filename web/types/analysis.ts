@@ -1,7 +1,17 @@
 import { ObjectId } from "mongodb";
 
 // ─── Analysis Status ─────────────────────────────────────────────
-export type AnalysisStatus = "pending" | "processing" | "completed" | "failed";
+export type AnalysisStatus = 
+  | "pending" 
+  | "processing" 
+  | "completed" 
+  | "failed"
+  | "extracting_data"
+  | "analyzing_ats"
+  | "evaluating_impact"
+  | "comparing_gap"
+  | "generating_feedback"
+  | "compiling_report";
 
 // ─── ATS Audit Types ─────────────────────────────────────────────
 

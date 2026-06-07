@@ -31,6 +31,8 @@ logger = logging.getLogger(__name__)
 # ─── Conditional Routing ──────────────────────────────────────────
 
 
+MAX_REVISIONS = 2
+
 def route_after_critic(state: AgentState) -> str:
     """
     Reads the Critic's decision from state and returns the next node name.
@@ -39,6 +41,12 @@ def route_after_critic(state: AgentState) -> str:
     Returns a string that maps to a node name in the graph.
     """
     critic = state.get("critic_result", {})
+    revision_count = state.get("revision_count", 0)
+
+    # Safety net: If critic accidentally flags revise after MAX_REVISIONS, force compile
+    if revision_count >= MAX_REVISIONS:
+        logger.warning("Max revisions reached in router — forcing compiler")
+        return "compiler"
 
     if critic.get("approved"):
         logger.info("Critic approved — routing to compiler")

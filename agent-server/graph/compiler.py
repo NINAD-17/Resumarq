@@ -34,6 +34,14 @@ def compiler_node(state: AgentState) -> dict:
     - Packages everything into the structure defined in app/models.py
     """
     # ── Deserialize audit results from state ──────────────────────
+    if not state.get("ats_audit") or not state.get("impact_audit") or not state.get("critic_result"):
+        logger.error("Missing required audit results in compiler state")
+        return {
+            "final_result": None,
+            "status": "failed",
+            "error": "Missing required audit results"
+        }
+
     ats_audit = ATSAuditResult(**state["ats_audit"])
     impact_audit = ImpactAuditResult(**state["impact_audit"])
     critic_result = CriticResult(**state["critic_result"])

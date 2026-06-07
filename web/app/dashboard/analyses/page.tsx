@@ -78,7 +78,7 @@ export default function AnalysesListPage() {
   // Poll every 5s if any analysis is still processing
   useEffect(() => {
     const hasProcessing = analyses.some(
-      (a) => a.status === "pending" || a.status === "processing",
+      (a) => ["pending", "processing", "extracting_data", "analyzing_ats", "evaluating_impact", "comparing_gap", "generating_feedback", "compiling_report"].includes(a.status),
     );
     if (!hasProcessing) return;
 

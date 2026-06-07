@@ -34,8 +34,8 @@ export const processAnalysis = inngest.createFunction(
       await updateAnalysisStatus(analysisId, "processing");
     });
 
-    // Step 2: Call the FastAPI agent server
-    const results = await step.run("call-agent-server", async () => {
+    // Step 2: Call the FastAPI agent server (Fire and Forget)
+    await step.run("trigger-agent-server", async () => {
       const agentUrl = process.env.AGENT_SERVER_URL;
       const agentKey = process.env.AGENT_SERVER_KEY;
 
@@ -56,20 +56,14 @@ export const processAnalysis = inngest.createFunction(
         }),
       });
 
-      if (!response.ok) {
+      if (response.status !== 202) {
         const errorText = await response.text();
-        throw new Error(`Agent server error (${response.status}): ${errorText}`);
+        throw new Error(`Agent server rejected request (${response.status}): ${errorText}`);
       }
 
-      return response.json();
-    });
-
-    // Step 3: Save results and mark as completed
-    await step.run("save-results", async () => {
-      await updateAnalysisStatus(analysisId, "completed", {
-        results,
-        completedAt: new Date(),
-      });
+      // Return immediately — FastAPI will run the graph in the background
+      // and update MongoDB directly when finished.
+      return { queued: true };
     });
 
     return { success: true, analysisId };

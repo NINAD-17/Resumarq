@@ -14,7 +14,37 @@ declare global {
 // Reuse existing client in development (survives hot reload)
 const client: MongoClient = global._mongoClient || new MongoClient(uri);
 const clientPromise: Promise<MongoClient> =
-  global._mongoClientPromise || client.connect();
+  global._mongoClientPromise ||
+  client.connect().then(async (resolvedClient) => {
+    // Dynamically import to avoid circular dependencies
+    try {
+      const [
+        { ensureUserProfileIndexes },
+        { ensurePaymentIndexes },
+        { ensureDemoAccessIndexes },
+        { ensureAnalysisIndexes },
+        { ensureResumeIndexes },
+      ] = await Promise.all([
+        import("./db/user-profiles"),
+        import("./db/payments"),
+        import("./db/demo-access"),
+        import("./db/analyses"),
+        import("./db/resumes"),
+      ]);
+
+      await Promise.all([
+        ensureUserProfileIndexes(),
+        ensurePaymentIndexes(),
+        ensureDemoAccessIndexes(),
+        ensureAnalysisIndexes(),
+        ensureResumeIndexes(),
+      ]);
+      console.log("Database indexes verified/created successfully.");
+    } catch (err) {
+      console.error("Error setting up database indexes:", err);
+    }
+    return resolvedClient;
+  });
 
 if (process.env.NODE_ENV === "development") {
   global._mongoClient = client;

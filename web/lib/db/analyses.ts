@@ -10,6 +10,12 @@ async function getCollection(): Promise<Collection<AnalysisDocument>> {
   return client.db().collection<AnalysisDocument>(COLLECTION);
 }
 
+/** Ensure indexes exist on the analyses collection */
+export async function ensureAnalysisIndexes(): Promise<void> {
+  const col = await getCollection();
+  await col.createIndex({ userId: 1, createdAt: -1 });
+}
+
 export async function insertAnalysis(
   data: AnalysisInsert,
 ): Promise<AnalysisDocument> {
