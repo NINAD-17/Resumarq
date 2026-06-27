@@ -22,10 +22,11 @@ class Settings(BaseSettings):
     # Google Gemini
     google_api_key: str
 
-    # Model names — override via .env to swap models without code changes
-    gemini_parser_model: str = "gemini-3.5-flash"   # Resume/JD parsing (multimodal)
-    gemini_audit_model: str = "gemini-3.5-flash"    # ATS/Impact/Gap audits
-    gemini_critic_model: str = "gemini-3.5-flash"   # Critic (highest reasoning)
+    # Universal model switching configuration (override via .env)
+    model_provider: str = "google_genai"
+    model_lite: str = "gemini-3.5-flash"   # Used for fast, cost-efficient, or basic tasks
+    model_flash: str = "gemini-3.5-flash"  # Standard balanced model for extraction and audits
+    model_pro: str = "gemini-3.5-flash"    # Premium/deep reasoning model (e.g. Critic review)
 
     # CORS settings
     frontend_url: str = "http://localhost:3000"

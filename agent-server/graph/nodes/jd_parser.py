@@ -11,7 +11,7 @@ This node is skipped if no JD text is provided (resume-only mode).
 import logging
 
 from langchain_core.messages import HumanMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
+from graph.llm import get_model
 
 from app.config import settings
 from graph.state import AgentState
@@ -21,9 +21,8 @@ logger = logging.getLogger(__name__)
 
 # ─── LLM with Pydantic structured output ─────────────────────────
 
-llm = ChatGoogleGenerativeAI(
-    model=settings.gemini_parser_model,
-    google_api_key=settings.google_api_key,
+llm = get_model(
+    model_name=settings.model_lite,
     temperature=0.1,
 )
 
@@ -45,7 +44,7 @@ def _load_prompt() -> str:
         return JD_PARSER_PROMPT
     except ImportError:
         logger.warning("Production prompt not found — using example prompt")
-        from prompts.jd_parser import JD_PARSER_PROMPT
+        from prompts_example.jd_parser import JD_PARSER_PROMPT
 
         return JD_PARSER_PROMPT
 

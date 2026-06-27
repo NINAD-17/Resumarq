@@ -13,7 +13,7 @@ import json
 import logging
 
 from langchain_core.messages import HumanMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
+from graph.llm import get_model
 
 from app.config import settings
 from graph.state import AgentState
@@ -23,9 +23,8 @@ logger = logging.getLogger(__name__)
 
 # ─── LLM with Pydantic structured output ─────────────────────────
 
-llm = ChatGoogleGenerativeAI(
-    model=settings.gemini_critic_model,
-    google_api_key=settings.google_api_key,
+llm = get_model(
+    model_name=settings.model_pro,
     temperature=0.1,
 )
 
@@ -47,7 +46,7 @@ def _load_prompt() -> str:
         return CRITIC_PROMPT
     except ImportError:
         logger.warning("Production prompt not found — using example prompt")
-        from prompts.critic import CRITIC_PROMPT
+        from prompts_example.critic import CRITIC_PROMPT
 
         return CRITIC_PROMPT
 
@@ -70,15 +69,21 @@ def critic_node(state: AgentState) -> dict:
     # Safety valve: max 2 revision loops — prevent infinite cycles
     if revision_count >= 2:
         logger.warning(
-            "Max revision count reached (%d) — forcing approval",
+            "Max revision count reached (%d) — forcing approval without LLM call",
             revision_count,
         )
-        # Run critic normally but override the result to force approval
-        result = _run_critic(state)
-        result["approved"] = True
-        result["revise_ats"] = False
-        result["revise_impact"] = False
-        result["revision_notes"] = None
+        # Avoid LLM call: build approval payload from previous state or fallback
+        existing_critic = state.get("critic_result") or {}
+        result = {
+            "approved": True,
+            "revise_ats": False,
+            "revise_impact": False,
+            "revision_notes": None,
+            "title": existing_critic.get("title", "Resume Analysis"),
+            "final_overall_score": existing_critic.get("final_overall_score", 70),
+            "final_summary": existing_critic.get("final_summary", "Analysis completed after maximum revisions."),
+            "additional_findings": existing_critic.get("additional_findings", []),
+        }
         validated = CriticResult(**result)
     else:
         raw_result = _run_critic(state)

@@ -14,9 +14,6 @@ class AgentState(TypedDict):
     resume_s3_key: str
     jd_text: str | None
 
-    # ── Raw Data ───────────────────────────────────────
-    resume_bytes: bytes
-
     # ── Parser Outputs ─────────────────────────────────
     resume_profile: dict | None  # Serialized ResumeProfile
     jd_profile: dict | None  # Serialized JDProfile

@@ -52,9 +52,10 @@ async def health_check():
         "status": "ok",
         "version": "0.1.0",
         "models": {
-            "parser": settings.gemini_parser_model,
-            "audit": settings.gemini_audit_model,
-            "critic": settings.gemini_critic_model,
+            "provider": settings.model_provider,
+            "lite": settings.model_lite,
+            "flash": settings.model_flash,
+            "pro": settings.model_pro,
         }
     }
 

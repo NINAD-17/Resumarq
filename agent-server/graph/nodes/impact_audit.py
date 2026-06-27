@@ -12,7 +12,7 @@ import json
 import logging
 
 from langchain_core.messages import HumanMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
+from graph.llm import get_model
 
 from app.config import settings
 from graph.state import AgentState
@@ -22,9 +22,8 @@ logger = logging.getLogger(__name__)
 
 # ─── LLM with Pydantic structured output ─────────────────────────
 
-llm = ChatGoogleGenerativeAI(
-    model=settings.gemini_audit_model,
-    google_api_key=settings.google_api_key,
+llm = get_model(
+    model_name=settings.model_flash,
     temperature=0.2,  # Slightly higher for creative rewrites
 )
 
@@ -46,7 +45,7 @@ def _load_prompt() -> str:
         return IMPACT_AUDIT_PROMPT
     except ImportError:
         logger.warning("Production prompt not found — using example prompt")
-        from prompts.impact_audit import IMPACT_AUDIT_PROMPT
+        from prompts_example.impact_audit import IMPACT_AUDIT_PROMPT
 
         return IMPACT_AUDIT_PROMPT
 

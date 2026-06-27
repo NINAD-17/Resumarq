@@ -12,7 +12,7 @@ import base64
 import logging
 
 from langchain_core.messages import HumanMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
+from graph.llm import get_model
 
 from app.config import settings
 from app.services.s3 import download_resume_from_s3
@@ -23,14 +23,13 @@ logger = logging.getLogger(__name__)
 
 # ─── LLM with Pydantic structured output ─────────────────────────
 
-llm = ChatGoogleGenerativeAI(
-    model=settings.gemini_parser_model,
-    google_api_key=settings.google_api_key,
+llm = get_model(
+    model_name=settings.model_lite,
     temperature=0.1,  # Low temp for consistent extraction
 )
 
 # .with_structured_output() using json_schema method.
-# Tells Gemini to return JSON matching our Pydantic model's schema.
+# Tells the model to return JSON matching our Pydantic model's schema.
 # Returns a dict (not a Pydantic instance) — we validate with Pydantic after.
 structured_llm = llm.with_structured_output(
     schema=ResumeProfile.model_json_schema(),
@@ -49,7 +48,7 @@ def _load_prompt() -> str:
         return RESUME_PARSER_PROMPT
     except ImportError:
         logger.warning("Production prompt not found — using example prompt")
-        from prompts.resume_parser import RESUME_PARSER_PROMPT
+        from prompts_example.resume_parser import RESUME_PARSER_PROMPT
 
         return RESUME_PARSER_PROMPT
 
@@ -106,6 +105,5 @@ def resume_parser_node(state: AgentState) -> dict:
     )
 
     return {
-        "resume_bytes": resume_bytes,
         "resume_profile": validated.model_dump(),
     }

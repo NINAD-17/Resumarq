@@ -1,6 +1,7 @@
 """
 Background tasks for the Agent Server.
 """
+from graph.state import AgentState
 import logging
 from graph.builder import graph
 from app.models import AnalyzeRequest
@@ -14,11 +15,10 @@ async def run_analysis_task(request: AnalyzeRequest):
     """
     logger.info("Starting background analysis task for analysis_id=%s", request.analysis_id)
     
-    initial_state = {
+    initial_state: AgentState = {
         "analysis_id": request.analysis_id,
         "resume_s3_key": request.resume_s3_key,
         "jd_text": request.jd_text,
-        "resume_bytes": b"",
         "resume_profile": None,
         "jd_profile": None,
         "ats_audit": None,
