@@ -23,8 +23,10 @@ const authRoutes = ["/sign-in", "/sign-up", "/forgot-password"];
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Get session token from cookie (Better Auth default cookie name)
-  const sessionToken = request.cookies.get("better-auth.session_token")?.value;
+  // Get session token from cookie (check both standard and secure HTTP cookies)
+  const sessionToken =
+    request.cookies.get("better-auth.session_token")?.value ||
+    request.cookies.get("__Secure-better-auth.session_token")?.value;
   // Also check for recruiter session cookie
   const recruiterToken = request.cookies.get("recruiter-session")?.value;
 
