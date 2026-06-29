@@ -148,8 +148,16 @@ export default function AnalysesListPage() {
       {/* Analysis cards */}
       <div className="space-y-3">
         {analyses.map((analysis) => {
-          const status = STATUS_CONFIG[analysis.status];
-          const StatusIcon = status.icon;
+          const baseStatusConfig = STATUS_CONFIG[analysis.status] || STATUS_CONFIG.processing;
+          const StatusIcon = baseStatusConfig.icon;
+          const statusLabel = STATUS_CONFIG[analysis.status]?.label || 
+            analysis.status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+          
+          const status = {
+            ...baseStatusConfig,
+            label: statusLabel
+          };
+
           const hasJD = !!analysis.jdText;
           const scores = analysis.status === "completed" ? analysis.results?.scores : null;
 

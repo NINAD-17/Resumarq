@@ -79,7 +79,14 @@ cp .env.example .env.local
 ```
 *Note: Open `.env.local` and fill in your actual credentials (e.g., MongoDB URI, AWS S3 keys, Better Auth secrets, Razorpay keys, Agent Server URL).*
 
-### 3. Run the Development Server
+### 3. Database Index Setup
+Verify and establish all MongoDB indexes (analyses, payments, userProfiles, resumes, demoAccess) to optimize query performance:
+
+```bash
+npm run db:setup
+```
+
+### 4. Run the Development Server
 Start the Next.js local development server:
 
 ```bash
@@ -88,7 +95,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the application.
 
-### 4. Run the Inngest Dev Server
+### 5. Run the Inngest Dev Server
 To process the background events locally, open a new terminal window and run:
 
 ```bash
@@ -103,3 +110,4 @@ npx inngest-cli@latest dev
 - `npm run build`: Creates an optimized production build.
 - `npm run start`: Starts the application in production mode using the compiled build.
 - `npm run lint`: Runs ESLint to catch syntax and styling issues.
+- `npm run db:setup`: Verifies and creates MongoDB collection indexes out-of-band.
