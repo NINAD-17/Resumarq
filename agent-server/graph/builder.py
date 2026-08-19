@@ -23,6 +23,7 @@ from graph.nodes.gap_analysis import gap_analysis_node
 from graph.nodes.impact_audit import impact_audit_node
 from graph.nodes.jd_parser import jd_parser_node
 from graph.nodes.resume_parser import resume_parser_node
+from graph.nodes.company_researcher import company_researcher_node
 from graph.state import AgentState
 
 logger = logging.getLogger(__name__)
@@ -88,6 +89,7 @@ def build_graph():
     workflow.add_node("ats_audit", ats_audit_node)
     workflow.add_node("impact_audit", impact_audit_node)
     workflow.add_node("gap_analysis", gap_analysis_node)
+    workflow.add_node("company_researcher", company_researcher_node)
     workflow.add_node("critic", critic_node)
     workflow.add_node("compiler", compiler_node)
 
@@ -108,10 +110,15 @@ def build_graph():
     workflow.add_edge("resume_parser", "gap_analysis")
     workflow.add_edge("jd_parser", "gap_analysis")
 
+    # Company researcher waits for both parsers
+    workflow.add_edge("resume_parser", "company_researcher")
+    workflow.add_edge("jd_parser", "company_researcher")
+
     # ── Tier 3: Critic waits for all three audits ─────────────────
     workflow.add_edge("ats_audit", "critic")
     workflow.add_edge("impact_audit", "critic")
     workflow.add_edge("gap_analysis", "critic")
+    workflow.add_edge("company_researcher", "critic")
 
     # ── Tier 4: Conditional routing from Critic ───────────────────
     # route_after_critic() reads critic_result from state and returns a node name

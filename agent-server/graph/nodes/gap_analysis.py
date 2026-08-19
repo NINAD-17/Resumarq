@@ -13,7 +13,7 @@ import json
 import logging
 
 from langchain_core.messages import HumanMessage
-from graph.llm import get_model
+from graph.llm import get_model, invoke_with_retry
 
 from app.config import settings
 from graph.state import AgentState
@@ -84,7 +84,7 @@ def gap_analysis_node(state: AgentState) -> dict:
     message = HumanMessage(content=prompt)
 
     # LLM compares resume vs JD → returns dict
-    raw_result: dict = structured_llm.invoke([message])
+    raw_result: dict = invoke_with_retry(structured_llm, [message])
 
     # Validate through Pydantic
     validated = GapAnalysisResult(**raw_result)

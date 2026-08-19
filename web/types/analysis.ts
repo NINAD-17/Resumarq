@@ -116,6 +116,22 @@ export interface AnalysisResults {
   additionalFindings: AdditionalFinding[];
   matchedSkills: string[]; // Required skills present in resume
   missingSkills: string[]; // Required skills absent from resume
+  companyResearch?: {
+    personalized_guide: string;
+    company_profile: {
+      company_name: string;
+      ceo: string | null;
+      founders: string[];
+      about: string;
+      domain: string | null;
+      culture: string[];
+      role_info: {
+        focus_areas: string[];
+        common_interview_questions: string[];
+        interview_style: string;
+      }
+    }
+  } | null;
 }
 
 // ─── Analysis Document ──────────────────────────────────────────
@@ -203,6 +219,7 @@ function normalizeResults(raw: any): AnalysisResults {
     additionalFindings: additionalFindings.map(normalizeAdditionalFinding),
     matchedSkills,
     missingSkills,
+    companyResearch: raw.companyResearch || raw.company_research || null,
   };
 }
 

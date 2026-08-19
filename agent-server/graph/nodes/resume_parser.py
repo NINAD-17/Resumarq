@@ -12,7 +12,7 @@ import base64
 import logging
 
 from langchain_core.messages import HumanMessage
-from graph.llm import get_model
+from graph.llm import get_model, invoke_with_retry
 
 from app.config import settings
 from app.services.s3 import download_resume_from_s3
@@ -92,7 +92,7 @@ def resume_parser_node(state: AgentState) -> dict:
     logger.info("Parsing resume with Gemini (structured output)...")
 
     # structured_llm returns a dict, not a Pydantic instance
-    raw_result: dict = structured_llm.invoke([message])
+    raw_result: dict = invoke_with_retry(structured_llm, [message])
 
     # Validate through Pydantic model for type safety
     validated = ResumeProfile(**raw_result) # Ex - {"name": "jack", "age": 25} => (name="jack", age=25)

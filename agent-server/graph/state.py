@@ -28,6 +28,9 @@ class AgentState(TypedDict):
     revision_count: int  # Max 2, prevents infinite loops
     revision_notes: str | None  # Critic passes notes to revised agent
 
+    # ── Company Insights ───────────────────────────────
+    company_research: dict | None
+
     # ── Final ──────────────────────────────────────────
     final_result: dict | None  # Serialized AnalyzeResponse
     status: str  # "processing" | "complete" | "failed"

@@ -11,6 +11,7 @@ import {
   Zap,
   Target,
   Lightbulb,
+  Briefcase,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +22,7 @@ import { ScoreRing } from "@/components/dashboard/score-ring";
 import { ATSRulesTable } from "@/components/dashboard/ats-rules-table";
 import { BulletAuditCard } from "@/components/dashboard/bullet-audit-card";
 import { GapSection } from "@/components/dashboard/gap-section";
+import { CompanyResearchSection } from "@/components/dashboard/company-research-section";
 import type {
   AnalysisResponse,
   ATSAuditResult,
@@ -28,7 +30,7 @@ import type {
   GapAnalysisResult,
 } from "@/types/analysis";
 
-type Section = "summary" | "ats" | "impact" | "gap" | "insights";
+type Section = "summary" | "ats" | "impact" | "gap" | "insights" | "prep";
 
 const SECTION_META: Record<
   Section,
@@ -39,6 +41,7 @@ const SECTION_META: Record<
   impact: { label: "Impact Audit", icon: Zap },
   gap: { label: "Gap Analysis", icon: Target },
   insights: { label: "Insights", icon: Lightbulb },
+  prep: { label: "Interview Prep", icon: Briefcase },
 };
 
 export default function AnalysisDetailPage() {
@@ -475,6 +478,10 @@ function SectionContent({
 
       {section === "insights" && (
         <InsightsSection results={results} />
+      )}
+
+      {section === "prep" && results.companyResearch && (
+        <CompanyResearchSection data={results.companyResearch} />
       )}
     </div>
   );

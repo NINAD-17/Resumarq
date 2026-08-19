@@ -27,6 +27,7 @@ async def run_analysis_task(request: AnalyzeRequest):
         "critic_result": None,
         "revision_count": 0,
         "revision_notes": None,
+        "company_research": None,
         "final_result": None,
         "status": "processing",
         "error": None,
@@ -40,6 +41,9 @@ async def run_analysis_task(request: AnalyzeRequest):
             node_name = list(output.keys())[0]
             current_state.update(output[node_name])
             
+            # Print realtime progress to the terminal for visibility
+            logger.info("🟢 [AGENT SERVER] Finished Node: %s", node_name)
+            
             # Map graph nodes to human-readable statuses for the frontend UI
             status_map = {
                 "resume_parser": "extracting_data",
@@ -47,6 +51,7 @@ async def run_analysis_task(request: AnalyzeRequest):
                 "ats_audit": "analyzing_ats",
                 "impact_audit": "evaluating_impact",
                 "gap_analysis": "comparing_gap",
+                "company_researcher": "researching_company",
                 "critic": "generating_feedback",
                 "compiler": "compiling_report"
             }

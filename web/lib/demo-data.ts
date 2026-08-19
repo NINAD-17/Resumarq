@@ -346,6 +346,22 @@ export const demoAnalysisData = {
         suggestion: "Rephrase the achievement to highlight specific contributions, quantify the success (e.g., 'outperformed X teams,' 'developed a solution that achieved Y'), and describe the impact of the innovative solutions.",
         title: "Lack of Impact in Achievements Section"
       }
-    ]
+    ],
+    companyResearch: {
+      personalized_guide: "### Interview Guide\n\nBased on your MERN stack experience, you are a strong fit for TechNova's engineering team. Be prepared to discuss:\n- How you optimized MongoDB queries in your university projects.\n- Your experience with React state management.\n- TechNova heavily values **agile methodologies**, so mention your hackathon teamwork.",
+      company_profile: {
+        company_name: "TechNova Solutions",
+        ceo: "Jane Doe",
+        founders: ["Jane Doe", "John Smith"],
+        about: "TechNova is a fast-growing startup building cloud-native solutions for modern teams. We value innovation, transparency, and rapid iteration.",
+        domain: "technova.example.com",
+        culture: ["Fast-paced", "Collaborative", "Remote-first"],
+        role_info: {
+          focus_areas: ["System Design", "React Performance", "Database Optimization"],
+          common_interview_questions: ["How do you handle state in a large React app?", "Explain how you would scale a Node.js backend."],
+          interview_style: "Technical deep-dives combined with pair programming."
+        }
+      }
+    }
   }
 };

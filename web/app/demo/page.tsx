@@ -7,11 +7,13 @@ import {
   Zap,
   Target,
   Lightbulb,
+  Briefcase,
 } from "lucide-react";
 import { ScoreRing } from "@/components/dashboard/score-ring";
 import { ATSRulesTable } from "@/components/dashboard/ats-rules-table";
 import { BulletAuditCard } from "@/components/dashboard/bullet-audit-card";
 import { GapSection } from "@/components/dashboard/gap-section";
+import { CompanyResearchSection } from "@/components/dashboard/company-research-section";
 import { demoAnalysisData } from "@/lib/demo-data";
 import type {
   AnalysisResponse,
@@ -20,7 +22,7 @@ import type {
   GapAnalysisResult,
 } from "@/types/analysis";
 
-type Section = "summary" | "ats" | "impact" | "gap" | "insights";
+type Section = "summary" | "ats" | "impact" | "gap" | "insights" | "prep";
 
 const SECTION_META: Record<
   Section,
@@ -31,6 +33,7 @@ const SECTION_META: Record<
   impact: { label: "Impact Audit", icon: Zap },
   gap: { label: "Gap Analysis", icon: Target },
   insights: { label: "Insights", icon: Lightbulb },
+  prep: { label: "Interview Prep", icon: Briefcase },
 };
 
 export default function DemoPage() {
@@ -43,12 +46,14 @@ export default function DemoPage() {
   const gap = results.gapAnalysis as GapAnalysisResult | null;
 
   const hasInsights = (results.additionalFindings?.length ?? 0) > 0;
+  const hasPrep = !!results.companyResearch;
   const sections: Section[] = [
     "summary",
     "ats",
     "impact",
     ...(gap ? ["gap" as Section] : []),
     ...(hasInsights ? ["insights" as Section] : []),
+    ...(hasPrep ? ["prep" as Section] : []),
   ];
 
   // Generate humanized section summaries from data
@@ -312,6 +317,10 @@ function SectionContent({
 
       {section === "insights" && (
         <InsightsSection results={results} />
+      )}
+
+      {section === "prep" && results.companyResearch && (
+        <CompanyResearchSection data={results.companyResearch} />
       )}
     </div>
   );

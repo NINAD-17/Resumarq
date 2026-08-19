@@ -11,7 +11,7 @@ This node is skipped if no JD text is provided (resume-only mode).
 import logging
 
 from langchain_core.messages import HumanMessage
-from graph.llm import get_model
+from graph.llm import get_model, invoke_with_retry
 
 from app.config import settings
 from graph.state import AgentState
@@ -75,7 +75,7 @@ def jd_parser_node(state: AgentState) -> dict:
     logger.info("Parsing JD with Gemini (structured output)...")
 
     # structured_llm returns a dict
-    raw_result: dict = structured_llm.invoke([message])
+    raw_result: dict = invoke_with_retry(structured_llm, [message])
 
     # Validate through Pydantic model
     validated = JDProfile(**raw_result)

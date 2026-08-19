@@ -13,3 +13,7 @@ def get_analyses_collection():
     """Return the analyses collection."""
     # The default database from the URI is used
     return client.get_default_database().get_collection("analyses")
+
+def get_companies_collection():
+    """Return the companies collection."""
+    return client.get_default_database().get_collection("companies")

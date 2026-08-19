@@ -103,6 +103,7 @@ def compiler_node(state: AgentState) -> dict:
         "additional_findings": [
             f.model_dump() for f in critic_result.additional_findings
         ],
+        "company_research": state.get("company_research"),
         "matched_skills": matched_skills,
         "missing_skills": missing_skills,
     }

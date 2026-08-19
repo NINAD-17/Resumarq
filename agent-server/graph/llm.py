@@ -19,6 +19,24 @@ def get_model(model_name: str, temperature: float = 0.1):
         temperature=temperature,
     )
 
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=2, min=2, max=10),
+    reraise=True
+)
+def invoke_with_retry(runnable, *args, **kwargs):
+    """
+    Invoke a LangChain runnable (model or structured_llm) with automatic retries.
+    Uses exponential backoff (2s, 4s, 8s...) to handle transient Google GenAI 503/429 errors.
+    """
+    try:
+        return runnable.invoke(*args, **kwargs)
+    except Exception as e:
+        logger.warning("Gemini API error (retrying): %s", str(e))
+        raise e
+
 # ──────────────────────────────────────────────────────────────────────
 # UNIVERSAL SWITCHER REFERENCE (Commented Out)
 #

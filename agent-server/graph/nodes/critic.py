@@ -13,7 +13,7 @@ import json
 import logging
 
 from langchain_core.messages import HumanMessage
-from graph.llm import get_model
+from graph.llm import get_model, invoke_with_retry
 
 from app.config import settings
 from graph.state import AgentState
@@ -124,11 +124,18 @@ def _run_critic(state: AgentState) -> dict:
     """
     prompt_template = _load_prompt()
 
-    # Build the prompt with all audit data
+    # Compress audit payloads to save tokens
+    ats_compressed = {
+        "failed_rules": [r for r in state["ats_audit"].get("rules", []) if r.get("status") != "pass"]
+    }
+    impact_compressed = {
+        "bullets_needing_rewrite": [b for b in state["impact_audit"].get("bullets", []) if b.get("rewrite_suggestion")]
+    }
+
     gap_analysis = state.get("gap_analysis")
     prompt = prompt_template.format(
-        ats_audit=json.dumps(state["ats_audit"], indent=2),
-        impact_audit=json.dumps(state["impact_audit"], indent=2),
+        ats_audit=json.dumps(ats_compressed, indent=2),
+        impact_audit=json.dumps(impact_compressed, indent=2),
         resume_profile=json.dumps(state["resume_profile"], indent=2),
         gap_analysis=(
             json.dumps(gap_analysis, indent=2)
@@ -141,5 +148,5 @@ def _run_critic(state: AgentState) -> dict:
     message = HumanMessage(content=prompt)
 
     # LLM reviews everything → returns dict
-    raw_result: dict = structured_llm.invoke([message])
+    raw_result: dict = invoke_with_retry(structured_llm, [message])
     return raw_result

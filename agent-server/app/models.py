@@ -56,6 +56,9 @@ class AnalyzeResponse(BaseModel):
     # Critic's additional findings that other agents missed
     additional_findings: list[dict] = []
 
+    # Company Insights
+    company_research: dict | None = None
+
     # Convenience fields extracted from gap_analysis
     matched_skills: list[str] = []  # Required skills present in resume
     missing_skills: list[str] = []  # Required skills absent from resume
