@@ -28,11 +28,13 @@ class Settings(BaseSettings):
     model_flash: str = "gemini-3.5-flash"  # Standard balanced model for extraction and audits
     model_pro: str = "gemini-3.5-flash"    # Premium/deep reasoning model (e.g. Critic review)
 
-    # CORS settings
-    frontend_url: str = "http://localhost:3000"
+    # Redis Configuration
+    redis_url: str = "redis://localhost:6379"
+    redis_queue_name: str = "resumarq:jobs"
+    max_concurrent_tasks: int = 2
 
-    # Internal API key — must match AGENT_SERVER_KEY in Next.js
-    api_key: str
+    # Internal API Security
+    api_key: str = ""
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

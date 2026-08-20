@@ -252,6 +252,8 @@ export default function AnalysisDetailPage() {
       : "Gap analysis is only available when a job description is provided.",
 
     insights: `${greeting ? `${greeting}here are ` : "Here are "}additional observations from our AI quality review — findings that go beyond the standard audit categories but are worth your attention.`,
+
+    prep: `${greeting ? `${greeting}here is ` : "Here is "}personalized company research and interview coaching tailored specifically to your target company, role expectations, and resume highlights.`,
   };
 
   return (

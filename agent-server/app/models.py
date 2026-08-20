@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 
 class AnalyzeRequest(BaseModel):
-    """Incoming request from Inngest via Next.js."""
+    """Job payload enqueued by Next.js via Redis."""
 
     # model_config: Allow both snake_case field names and camelCase aliases (e.g. analysis_id or analysisId) 
     # to populate the model, ensuring compatibility between Python code and JSON payloads.
@@ -36,7 +36,7 @@ class AnalysisScores(BaseModel):
 class AnalyzeResponse(BaseModel):
     """
     Complete analysis results returned by the multi-agent graph.
-    Written to MongoDB by Inngest after this is returned.
+    Written directly to MongoDB by the worker after execution.
     Matches AnalysisResults in web/types/analysis.ts.
     """
 

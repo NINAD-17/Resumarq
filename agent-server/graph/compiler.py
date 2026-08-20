@@ -4,9 +4,9 @@ Compiler — Merges all agent outputs into the final AnalyzeResponse.
 Pure Python — NO LLM call. Takes the state after Critic approval and:
 1. Calculates final scores using deterministic Python functions
 2. Extracts convenience fields (matched/missing skills) from Gap Analysis
-3. Packages everything into one AnalyzeResponse dict for the /analyze endpoint
+3. Packages everything into one AnalyzeResponse dict for saving to MongoDB
 
-This is the LAST step before the response is returned to Inngest.
+This is the LAST node in the multi-agent graph before saving results.
 """
 
 import logging

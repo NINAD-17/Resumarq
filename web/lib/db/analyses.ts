@@ -43,7 +43,7 @@ export async function getAnalysisById(
   return col.findOne({ _id: new ObjectId(id), userId });
 }
 
-/** Update the status of an analysis (used by Inngest when processing starts/completes) */
+/** Update the status of an analysis (called when status changes) */
 export async function updateAnalysisStatus(
   id: string,
   status: AnalysisDocument["status"],

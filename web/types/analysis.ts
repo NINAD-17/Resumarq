@@ -10,6 +10,7 @@ export type AnalysisStatus =
   | "analyzing_ats"
   | "evaluating_impact"
   | "comparing_gap"
+  | "researching_company"
   | "generating_feedback"
   | "compiling_report";
 

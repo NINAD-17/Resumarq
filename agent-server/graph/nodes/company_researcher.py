@@ -22,7 +22,7 @@ from schemas.company import CompanySearchProfile, CompanyRoleSearchInfo
 
 # ─── Graph Node ───────────────────────────────────────────────────────
 
-def company_researcher_node(state: AgentState) -> dict:
+async def company_researcher_node(state: AgentState) -> dict:
     """
     Agent Node: Research target company/role and align with candidate resume.
     
@@ -45,7 +45,7 @@ def company_researcher_node(state: AgentState) -> dict:
     # ── 1. Query Cache ────────────────────────────────────────────────
     try:
         companies_col = get_companies_collection()
-        company_doc = companies_col.find_one({
+        company_doc = await companies_col.find_one({
             "company_name": {"$regex": f"^{company_name}$", "$options": "i"}
         })
     except Exception as e:
@@ -132,7 +132,7 @@ def company_researcher_node(state: AgentState) -> dict:
         try:
             if company_doc:
                 # Company exists, but this role's search data is missing. Add/update the role
-                companies_col.update_one(
+                await companies_col.update_one(
                     {"_id": company_doc["_id"]},
                     {
                         "$set": {
@@ -154,7 +154,7 @@ def company_researcher_node(state: AgentState) -> dict:
                         role_key: company_info["role_info"]
                     }
                 }
-                companies_col.insert_one(new_doc)
+                await companies_col.insert_one(new_doc)
                 logger.info("Created new cached company record for '%s'", company_name)
         except Exception as e:
             logger.error("Error writing to companies database: %s", str(e))

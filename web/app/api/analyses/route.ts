@@ -4,7 +4,7 @@ import { insertAnalysis, getAnalysesByUser } from "@/lib/db/analyses";
 import { getResumesByUser } from "@/lib/db/resumes";
 import { getResumeById } from "@/lib/db/resumes";
 import { toAnalysisResponse } from "@/types/analysis";
-import { inngest } from "@/inngest/client";
+import { enqueueAnalysisJob } from "@/lib/redis";
 
 const MAX_JD_LENGTH = 10000; // Characters
 
@@ -97,14 +97,11 @@ export async function POST(request: NextRequest) {
       updatedAt: now,
     });
 
-    // Fire Inngest event to start background processing
-    await inngest.send({
-      name: "analysis/created",
-      data: {
-        analysisId: analysis._id.toHexString(),
-        resumeS3Key: resume.s3Key,
-        jdText: cleanJdText,
-      },
+    // Enqueue job to Redis for background processing by workers
+    await enqueueAnalysisJob({
+      analysisId: analysis._id.toHexString(),
+      resumeS3Key: resume.s3Key,
+      jdText: cleanJdText,
     });
 
     // If this was a recruiter, mark their free analysis as used

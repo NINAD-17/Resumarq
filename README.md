@@ -24,37 +24,34 @@ Users upload their resume (and optionally, a target JD), and the platform runs a
 
 ## 🏗️ Detailed Architecture & Scalability
 
-Building an AI platform that performs heavy LLM text analysis requires a meticulous approach to architecture. Synchronous API calls would lead to timeouts and a poor user experience. To solve this, Resumarq is built on a highly scalable, event-driven **"fire-and-forget"** architecture.
+Building an AI platform that performs heavy LLM text analysis requires a meticulous approach to architecture. Synchronous API calls would lead to timeouts and poor user experience. To solve this, Resumarq is built on an event-driven **Redis Queue + Distributed Worker** architecture.
 
 ```mermaid
 graph TD
     A[User / Next.js] -->|1. Uploads PDF| C[(AWS S3)]
     A -->|2. Creates DB Record| H[(MongoDB)]
-    A -->|3. Dispatches Event| D[Inngest Worker]
+    A -->|3. Enqueues Job LPUSH| D[(Redis Queue)]
     A -.->|6. Polls for Status| H
     
-    D -->|4. Fire-and-Forget HTTP POST| B(FastAPI Server)
-    B -->|Immediate 202 Accepted| D
-    
-    B -->|5. Runs Async| E[Langgraph Agents]
-    E -->|Downloads PDF| C
-    E -->|Extracts Text| F[PyMuPDF]
-    E -->|Validates Data| G[Pydantic]
-    E -->|Updates Status & Results| H
+    E[Python Worker] -->|4. Dequeues Job BRPOP| D
+    E -->|5. Runs Multi-Agent Graph| G[LangGraph Pipeline]
+    G -->|Downloads PDF| C
+    G -->|Extracts Text & Evaluates| F[Gemini 2.5 Flash]
+    G -->|Updates Live Status & Results| H
 ```
 
 ### How It Works:
 1. **Upload & DB Initialization**: When a user submits an analysis request, the **Next.js** frontend securely uploads the Resume PDF directly to **AWS S3**. Next.js then creates a document in **MongoDB** with a `pending` status, storing the JD text and the S3 key.
-2. **Event Dispatch (Inngest)**: Next.js fires an event to our **Inngest** worker. The worker updates the MongoDB status to `processing`.
-3. **Fire and Forget**: The Inngest worker sends an HTTP POST request to our **FastAPI** backend, containing the analysis ID, S3 key, and JD text. FastAPI immediately returns a `202 Accepted` response. This non-blocking step ensures that neither the frontend nor Inngest times out waiting for the AI.
-4. **Background Agent Workflows (Langgraph)**: FastAPI utilizes background tasks to execute a complex **Langgraph** workflow. The backend downloads the PDF from S3, parses the text using **PyMuPDF**, and routes the data through specialized LLM agents (e.g., skills match, impact metrics, formatting).
-5. **Structured Outputs & Direct DB Write**: All data moving between the LLM and our system is strictly validated using **Pydantic**. Once the agents finish, the FastAPI server connects directly to MongoDB to save the analysis results and mark the status as `completed`.
-6. **Polling & Results**: Meanwhile, the frontend actively polls the MongoDB database. As soon as the status flips to `completed`, the user's dashboard dynamically renders the actionable insights.
+2. **Job Enqueue (Redis)**: Next.js enqueues the job payload (`analysisId`, `resumeS3Key`, `jdText`) directly into **Redis** (`resumarq:jobs` queue) and immediately returns `201 Created` to the client.
+3. **Queue Backpressure & Concurrency**: The background **Python Worker** (`worker.py`) constantly listens to the Redis queue using non-blocking `BRPOP`. Workers only dequeue jobs when concurrency slots (`asyncio.Semaphore`) are free, preventing server overload.
+4. **Multi-Agent Execution (LangGraph)**: The worker executes the LangGraph multi-agent pipeline. It fetches the resume from S3, parses candidate and JD profiles, audits ATS rules, checks quantifiable impact, conducts company research with Google grounding, and critiques findings.
+5. **Real-time Status Updates & MongoDB Persistence**: As the graph streams through each node, it updates MongoDB in real-time (`extracting_data`, `analyzing_ats`, `evaluating_impact`, `researching_company`, `compiling_report`). Upon completion, the full validated report is saved to MongoDB.
+6. **Polling & Dynamic UI**: The frontend polls MongoDB. As each milestone completes, the user's dashboard dynamically renders live progress and final actionable insights.
 
 ### Cloud Scalability on AWS
 The architecture is designed to handle massive spikes in user traffic (e.g., during placement seasons). 
-- **Decoupled Workloads:** By separating the web server from the background AI workers, a surge in web traffic won't crash the heavy AI processing pipeline.
-- **Horizontal Scaling:** The FastAPI agent servers run on **AWS EC2 instances** behind an Application Load Balancer (ALB). If analysis traffic grows, Auto Scaling Groups (ASG) can spin up additional EC2 instances to process the background tasks in parallel, automatically spinning down when demand drops.
+- **Decoupled Workloads:** The Next.js web application is completely decoupled from the AI processing workers via Redis.
+- **Horizontal Scaling:** Workers run as lightweight background services on **AWS EC2 instances**. You can scale from 1 worker to dozens across multiple EC2 instances, all pulling from the same Redis queue without code changes.
 
 ---
 
@@ -63,24 +60,24 @@ The architecture is designed to handle massive spikes in user traffic (e.g., dur
 Resumarq leverages a modern, robust, and developer-friendly stack:
 
 ### Frontend (Client-Side)
-- **Next.js**: Server-Side Rendering (SSR) and seamless API routing for a fast, SEO-friendly web app.
-- **Tailwind CSS & Shadcn UI**: For building a beautiful, accessible, and highly responsive user interface.
-- **Better Auth**: Providing secure, flexible, and modern authentication for users.
-- **Razorpay**: Integrated payment gateway for handling premium feature subscriptions and analysis credits.
+- **Next.js**: Server-Side Rendering (SSR) and App Router API routes.
+- **Tailwind CSS & Shadcn UI**: Clean, responsive design system.
+- **Better Auth**: Providing secure, flexible authentication.
+- **Razorpay**: Integrated payment gateway for feature subscriptions and analysis credits.
+- **ioredis**: Ultra-fast, resilient Redis client for background job enqueuing.
 
-### Backend (Server-Side)
-- **FastAPI**: A high-performance Python web framework running on **Uvicorn**, perfect for building async, concurrent APIs and handling background tasks.
-- **Inngest**: Integrated into the Next.js ecosystem to manage reliable event dispatching and orchestrate the hand-off to our FastAPI server.
-
-### AI & Data Processing
-- **Langgraph**: Orchestrates the multi-agent LLM workflows, allowing the AI to think and process the resume in distinct, logical steps.
-- **PyMuPDF**: A blazing-fast library used to extract clean, highly accurate text and metadata from user-uploaded PDFs.
-- **Pydantic**: Enforces strict data types and schema validation, ensuring the LLM outputs exactly what the frontend expects.
-- **MongoDB**: Our primary NoSQL database, serving as the central source of truth for user data and analysis statuses.
+### Backend (AI Worker & Monitoring)
+- **Python Redis Worker**: Async background consumer (`worker.py`) with concurrency control and graceful shutdown.
+- **FastAPI**: Lightweight health check and queue monitoring service.
+- **LangGraph**: Orchestrates the multi-agent LLM workflows in distinct, structured tiers.
+- **PyMuPDF**: Fast PDF text extraction and inspection.
+- **Pydantic**: Strict data validation and structured outputs for LLMs.
+- **Motor / MongoDB**: Async MongoDB database for user data and analysis persistence.
 
 ### Cloud & Infrastructure
-- **AWS S3**: Secure, scalable object storage for user resumes.
-- **AWS EC2**: Scalable compute capacity to run our intensive FastAPI/Langgraph agent servers.
+- **Redis (Redis Cloud / ElastiCache)**: Reliable, high-throughput job queue.
+- **AWS S3**: Secure, scalable object storage for resume PDFs.
+- **AWS EC2**: Compute capacity for Python worker services and AI pipeline.
 
 ---
 
@@ -89,4 +86,4 @@ Resumarq leverages a modern, robust, and developer-friendly stack:
 The project is divided into two primary services. For specific setup, environment variables, and local run instructions, please refer to the inner documentation:
 
 - 🖥️ **[Frontend Web App (Next.js)](./web/README.md)**
-- ⚙️ **[Agent Server (FastAPI)](./agent-server/README.md)**
+- ⚙️ **[Agent Server & Worker (Python)](./agent-server/README.md)**

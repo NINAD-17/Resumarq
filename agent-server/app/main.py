@@ -1,81 +1,86 @@
 """
-Resumarq Agent Server — FastAPI Application
+Resumarq Agent Server — Monitoring & Health API
 
-Entry point for the agent server. Handles:
-- API key authentication for internal requests (from Inngest)
-- /analyze endpoint to trigger resume analysis
-- /health endpoint for monitoring
+Provides health checks, Redis queue depth monitoring, and system metrics.
+Called strictly server-to-server (e.g. Next.js server, AWS ALB, Docker healthcheck).
+Jobs are processed asynchronously by the Redis worker (app.worker).
 """
 
 import logging
-
-from fastapi import Depends, FastAPI, HTTPException, Security, BackgroundTasks
+import redis.asyncio as aioredis
+from fastapi import Depends, FastAPI, HTTPException, Security
 from fastapi.security import APIKeyHeader
-from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.models import AnalyzeRequest, AnalyzeAccepted
-from app.tasks import run_analysis_task
+from app.db import client as mongo_client
 
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Resumarq Agent Server",
-    description="Internal AI agent server for resume analysis",
-    version="0.1.0",
+    description="Internal Monitoring & Health API for Resumarq AI Agent Pipeline",
+    version="0.2.0",
 )
 
-# CORS middleware for Next.js frontend access
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[settings.frontend_url],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# API key auth — prevents public access to the agent server
-api_key_header = APIKeyHeader(name="X-API-Key")
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
-async def verify_api_key(api_key: str = Security(api_key_header)) -> str:
-    """Validate the API key matches the configured secret."""
-    if api_key != settings.api_key:
+async def verify_api_key(api_key: str | None = Security(api_key_header)) -> str | None:
+    """Validate API key if API_KEY is configured in settings."""
+    if settings.api_key and api_key != settings.api_key:
         raise HTTPException(status_code=403, detail="Invalid API key")
     return api_key
 
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint — no auth required."""
+    """
+    Lightweight public health check endpoint for AWS ALB, Docker, or internal monitors.
+    Returns 200 OK without requiring authentication.
+    """
+    return {"status": "ok", "version": "0.2.0"}
+
+
+@app.get("/status")
+async def status_check(_api_key: str | None = Depends(verify_api_key)):
+    """
+    Detailed system status & queue metrics endpoint (protected by X-API-Key if configured).
+    Checks connectivity to MongoDB, Redis, and reports current queue depth and model configuration.
+    """
+    # Check MongoDB
+    mongo_status = "connected"
+    try:
+        await mongo_client.admin.command("ping")
+    except Exception as e:
+        mongo_status = f"error: {str(e)}"
+
+    # Check Redis
+    redis_status = "connected"
+    queue_length = 0
+    try:
+        r = aioredis.from_url(settings.redis_url, decode_responses=True)
+        await r.ping()
+        queue_length = await r.llen(settings.redis_queue_name)
+        await r.aclose()
+    except Exception as e:
+        redis_status = f"error: {str(e)}"
+
+    overall_status = "ok" if mongo_status == "connected" and redis_status == "connected" else "degraded"
+
     return {
-        "status": "ok",
-        "version": "0.1.0",
+        "status": overall_status,
+        "version": "0.2.0",
+        "mongodb": mongo_status,
+        "redis": {
+            "status": redis_status,
+            "queue_name": settings.redis_queue_name,
+            "pending_jobs": queue_length,
+        },
         "models": {
             "provider": settings.model_provider,
             "lite": settings.model_lite,
             "flash": settings.model_flash,
             "pro": settings.model_pro,
-        }
+        },
+        "concurrency_limit": settings.max_concurrent_tasks,
     }
-
-
-@app.post("/analyze", response_model=AnalyzeAccepted, status_code=202)
-async def analyze(
-    request: AnalyzeRequest,
-    background_tasks: BackgroundTasks,
-    _api_key: str = Depends(verify_api_key),
-):
-    """
-    Run multi-agent analysis on a resume against a job description.
-
-    Called by Inngest (via Next.js) when a user creates a new analysis.
-    This endpoint is non-blocking (Fire-and-Forget): it accepts the request,
-    queues the graph execution as a background task, and returns 202 Accepted.
-    The background task handles saving the results to MongoDB.
-    """
-    logger.info("Accepting analysis_id=%s for background processing", request.analysis_id)
-    
-    background_tasks.add_task(run_analysis_task, request)
-    
-    return AnalyzeAccepted(analysis_id=request.analysis_id)
