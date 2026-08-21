@@ -1,0 +1,75 @@
+name: Deploy Agent Server to AWS EC2
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'agent-server/**'
+      - '.github/workflows/deploy-agent-server.yml'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  build-and-push:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./agent-server
+          file: ./agent-server/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/resumarq-agent-server:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/resumarq-agent-server:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to AWS EC2
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Execute Deployment Commands on EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+
+            echo " Logging into Docker Hub on EC2..."
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+            echo " Pulling latest Docker image..."
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/resumarq-agent-server:latest
+
+            echo " Navigating to deployment directory..."
+            mkdir -p ~/resumarq/agent-server
+            cd ~/resumarq/agent-server
+
+            echo " Deploying updated containers..."
+            DOCKER_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/resumarq-agent-server:latest docker compose up -d --remove-orphans
+
+            echo " Cleaning up unused old images..."
+            docker image prune -f
+
+            echo " Verifying health check..."
+            sleep 4
+            curl -f http://localhost:8000/health || (echo "❌ Health check failed!" && exit 1)
+
+            echo " Deployment completed successfully!"
