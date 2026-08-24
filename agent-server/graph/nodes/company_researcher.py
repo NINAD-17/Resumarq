@@ -203,15 +203,19 @@ async def company_researcher_node(state: AgentState) -> dict:
 
     return {
         "company_research": {
-            "company_name": company_info.get("company_name", company_name),
-            "ceo": company_info.get("ceo"),
-            "founders": company_info.get("founders", []),
-            "about": company_info.get("about"),
-            "domain": company_info.get("domain"),
-            "culture": company_info.get("culture", []),
-            "role_focus_areas": company_info["role_info"].get("focus_areas", []),
-            "role_interview_style": company_info["role_info"].get("interview_style"),
-            "common_questions": company_info["role_info"].get("common_interview_questions", []),
-            "personalized_guide": personalized_guide
+            "company_profile": {
+                "company_name": company_info.get("company_name", company_name),
+                "ceo": company_info.get("ceo"),
+                "founders": company_info.get("founders", []),
+                "about": company_info.get("about", ""),
+                "domain": company_info.get("domain"),
+                "culture": company_info.get("culture", []),
+                "role_info": {
+                    "focus_areas": company_info["role_info"].get("focus_areas", []),
+                    "common_interview_questions": company_info["role_info"].get("common_interview_questions", []),
+                    "interview_style": company_info["role_info"].get("interview_style", ""),
+                },
+            },
+            "personalized_guide": personalized_guide,
         }
     }

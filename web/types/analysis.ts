@@ -221,7 +221,35 @@ function normalizeResults(raw: any): AnalysisResults {
     additionalFindings: additionalFindings.map(normalizeAdditionalFinding),
     matchedSkills,
     missingSkills,
-    companyResearch: raw.companyResearch || raw.company_research || null,
+    companyResearch: normalizeCompanyResearch(raw.companyResearch || raw.company_research),
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeCompanyResearch(raw: any) {
+  if (!raw) return null;
+  const profile = raw.company_profile || raw.companyProfile || raw;
+  const roleInfo = profile.role_info || profile.roleInfo || {
+    focus_areas: raw.role_focus_areas || [],
+    common_interview_questions: raw.common_questions || [],
+    interview_style: raw.role_interview_style || "",
+  };
+
+  return {
+    personalized_guide: raw.personalized_guide || raw.personalizedGuide || "",
+    company_profile: {
+      company_name: profile.company_name || profile.companyName || "Target Company",
+      ceo: profile.ceo || null,
+      founders: Array.isArray(profile.founders) ? profile.founders : [],
+      about: profile.about || "",
+      domain: profile.domain || null,
+      culture: Array.isArray(profile.culture) ? profile.culture : [],
+      role_info: {
+        focus_areas: Array.isArray(roleInfo.focus_areas) ? roleInfo.focus_areas : (roleInfo.focusAreas || []),
+        common_interview_questions: Array.isArray(roleInfo.common_interview_questions) ? roleInfo.common_interview_questions : (roleInfo.commonInterviewQuestions || []),
+        interview_style: roleInfo.interview_style || roleInfo.interviewStyle || "",
+      },
+    },
   };
 }
 
