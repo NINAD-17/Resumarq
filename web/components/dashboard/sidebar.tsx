@@ -50,7 +50,7 @@ export function Sidebar({ demoMode = false, onActionClick, recruiterAnalysisId }
     <>
       {/* Logo */}
       <div className="flex h-14 items-center justify-between px-5">
-        <Link href={demoMode ? "/demo" : "/dashboard"} className="flex items-center gap-2.5 group" onClick={() => setMobileOpen(false)}>
+        <Link href="/" className="flex items-center gap-2.5 group" onClick={() => setMobileOpen(false)}>
           <div className="size-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
             <Zap className="size-4 fill-current" />
           </div>

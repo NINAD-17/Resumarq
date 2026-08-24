@@ -36,7 +36,22 @@ class Settings(BaseSettings):
     # Internal API Security
     api_key: str = ""
 
+    # LangSmith Observability
+    langchain_tracing_v2: str = "false"
+    langchain_endpoint: str = "https://api.smith.langchain.com"
+    langchain_api_key: str = ""
+    langchain_project: str = "resumarq-agent-server"
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
 settings = Settings()  # type: ignore[call-arg]
+
+# Copy LangSmith configuration to system os.environ so LangChain auto-tracer detects it
+import os
+
+if settings.langchain_api_key:
+    os.environ["LANGCHAIN_TRACING_V2"] = settings.langchain_tracing_v2
+    os.environ["LANGCHAIN_ENDPOINT"] = settings.langchain_endpoint
+    os.environ["LANGCHAIN_API_KEY"] = settings.langchain_api_key
+    os.environ["LANGCHAIN_PROJECT"] = settings.langchain_project
