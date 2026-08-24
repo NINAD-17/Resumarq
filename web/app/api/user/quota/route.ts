@@ -5,10 +5,10 @@ import { getOrCreateProfile } from "@/lib/db/user-profiles";
 export async function GET(request: NextRequest) {
   try {
     const session = await requireSession();
-    
+
     // Fetch profile (which automatically creates it if missing and gives 1 free quota)
     const profile = await getOrCreateProfile(session.user.id);
-    
+
     return NextResponse.json({
       quotaRemaining: profile.quotaRemaining,
       plan: profile.plan,

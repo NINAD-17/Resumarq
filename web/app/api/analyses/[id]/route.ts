@@ -41,12 +41,23 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Fetch the resume name for display
+    // Fetch the resume name and presigned download URL for display
     const resume = await getResumeById(analysis.resumeId, userId);
+    let resumeDownloadUrl: string | undefined;
 
-    return NextResponse.json(
-      toAnalysisResponse(analysis, resume?.fileName),
-    );
+    if (resume?.s3Key) {
+      try {
+        const { getPresignedDownloadUrl } = await import("@/lib/s3");
+        resumeDownloadUrl = await getPresignedDownloadUrl(resume.s3Key);
+      } catch (s3Err) {
+        console.error("Presigned URL generation error:", s3Err);
+      }
+    }
+
+    return NextResponse.json({
+      ...toAnalysisResponse(analysis, resume?.fileName),
+      resumeDownloadUrl,
+    });
   } catch (error) {
     if (error instanceof Error && error.message === "Unauthorized") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

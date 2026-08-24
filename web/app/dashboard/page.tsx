@@ -1,9 +1,23 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Upload, FileText, ArrowRight, X, FileSearch, GitCompareArrows, Info, ExternalLink } from "lucide-react";
+import useSWR from "swr";
+import {
+  Upload,
+  FileText,
+  ArrowRight,
+  X,
+  FileSearch,
+  GitCompareArrows,
+  Info,
+  ExternalLink,
+  Trash2,
+  Check,
+  Clock,
+  Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -13,6 +27,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { PaymentModal } from "@/components/dashboard/payment-modal";
+import { fetcher } from "@/lib/fetcher";
+import type { ResumeResponse } from "@/types/resume";
 
 type AnalysisMode = "resume-only" | "resume-jd";
 
@@ -22,40 +38,41 @@ export default function NewAnalysisPage() {
 
   // Form state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedSavedResume, setSelectedSavedResume] = useState<ResumeResponse | null>(null);
+  const [deletingResumeId, setDeletingResumeId] = useState<string | null>(null);
+
   const [jdText, setJdText] = useState("");
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>("resume-jd");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Recruiter state
-  const [recruiterStatus, setRecruiterStatus] = useState<{
+  // Step tracking — simple 2-step flow
+  const [step, setStep] = useState<1 | 2>(1);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+
+  // SWR: Recruiter status
+  const { data: recruiterStatus } = useSWR<{
     isRecruiter: boolean;
     canAnalyze: boolean;
     analysisId?: string | null;
-  } | null>(null);
+  }>("/api/recruiter/check", fetcher, { revalidateOnFocus: false });
 
-  // Step tracking — simple 2-step flow
-  const [step, setStep] = useState<1 | 2>(1);
+  // SWR: Quota
+  const { data: quota, mutate: mutateQuota } = useSWR<{
+    quotaRemaining: number;
+    plan: string;
+  }>("/api/user/quota", fetcher, { revalidateOnFocus: true });
 
-  // Quota state
-  const [quota, setQuota] = useState<{ quotaRemaining: number; plan: string } | null>(null);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-
-  // Check recruiter status and quota on mount
-  useEffect(() => {
-    fetch("/api/recruiter/check")
-      .then((res) => res.json())
-      .then((data) => setRecruiterStatus(data))
-      .catch(() => setRecruiterStatus({ isRecruiter: false, canAnalyze: false }));
-
-    fetch("/api/user/quota")
-      .then((res) => {
-        if (res.ok) return res.json();
-        throw new Error();
-      })
-      .then((data) => setQuota(data))
-      .catch(() => setQuota(null));
-  }, []);
+  // SWR: Saved Resumes
+  const {
+    data: savedResumes = [],
+    isLoading: isLoadingResumes,
+    mutate: mutateSavedResumes,
+  } = useSWR<ResumeResponse[]>(
+    recruiterStatus?.isRecruiter ? null : "/api/resumes",
+    fetcher,
+    { revalidateOnFocus: true }
+  );
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -71,6 +88,7 @@ export default function NewAnalysisPage() {
     }
 
     setSelectedFile(file);
+    setSelectedSavedResume(null); // Deselect saved resume when new file is uploaded
     setError(null);
   };
 
@@ -87,12 +105,42 @@ export default function NewAnalysisPage() {
         return;
       }
       setSelectedFile(file);
+      setSelectedSavedResume(null);
       setError(null);
     }
   };
 
+  const handleDeleteResume = async (resumeId: string) => {
+    if (!confirm("Are you sure you want to delete this saved resume?")) return;
+
+    setDeletingResumeId(resumeId);
+    try {
+      const res = await fetch(`/api/resumes/${resumeId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to delete resume");
+      }
+
+      mutateSavedResumes(
+        (prev) => (prev || []).filter((r) => r.id !== resumeId),
+        false
+      );
+      if (selectedSavedResume?.id === resumeId) {
+        setSelectedSavedResume(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete resume");
+    } finally {
+      setDeletingResumeId(null);
+    }
+  };
+
+  const hasResumeSelected = !!selectedFile || !!selectedSavedResume;
+
   const canSubmit =
-    selectedFile &&
+    hasResumeSelected &&
     (analysisMode === "resume-only" || jdText.trim().length > 0) &&
     !isSubmitting;
 
@@ -112,28 +160,39 @@ export default function NewAnalysisPage() {
     }
 
     try {
-      // Step 1: Upload resume
-      const formData = new FormData();
-      formData.append("file", selectedFile!);
+      let resumeId: string;
 
-      const uploadRes = await fetch("/api/resumes", {
-        method: "POST",
-        body: formData,
-      });
+      if (selectedSavedResume) {
+        // Reuse existing uploaded resume
+        resumeId = selectedSavedResume.id;
+      } else if (selectedFile) {
+        // Step 1: Upload new resume to S3
+        const formData = new FormData();
+        formData.append("file", selectedFile);
 
-      if (!uploadRes.ok) {
-        const data = await uploadRes.json();
-        throw new Error(data.error || "Failed to upload resume");
+        const uploadRes = await fetch("/api/resumes", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!uploadRes.ok) {
+          const data = await uploadRes.json();
+          throw new Error(data.error || "Failed to upload resume");
+        }
+
+        const resume = await uploadRes.json();
+        resumeId = resume.id;
+        mutateSavedResumes(); // Revalidate saved resumes in background
+      } else {
+        throw new Error("Please select or upload a resume");
       }
-
-      const resume = await uploadRes.json();
 
       // Step 2: Create analysis
       const analysisRes = await fetch("/api/analyses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          resumeId: resume.id,
+          resumeId,
           ...(analysisMode === "resume-jd" ? { jdText: jdText.trim() } : {}),
         }),
       });
@@ -149,8 +208,9 @@ export default function NewAnalysisPage() {
       }
 
       const analysis = await analysisRes.json();
+      mutateQuota(); // Update quota in background
 
-      // Navigate to the analysis detail page (which will poll for results)
+      // Navigate to the analysis detail page
       router.push(`/dashboard/analyses/${analysis.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -208,8 +268,9 @@ export default function NewAnalysisPage() {
           onSuccess={(newQuotaRemaining) => {
             setShowPaymentModal(false);
             if (newQuotaRemaining !== undefined) {
-              setQuota((prev) =>
-                prev ? { ...prev, quotaRemaining: newQuotaRemaining } : null
+              mutateQuota(
+                (prev) => prev ? { ...prev, quotaRemaining: newQuotaRemaining } : undefined,
+                false
               );
             }
             handleSubmit(newQuotaRemaining); // Auto-retry with updated quota
@@ -232,8 +293,8 @@ export default function NewAnalysisPage() {
         {/* Quota Badge for regular users */}
         {!recruiterStatus?.isRecruiter && quota && (
           <div className="rounded-full bg-accent px-3 py-1 text-sm font-medium border border-border flex items-center gap-2">
-            <span className="size-2 rounded-full bg-primary" />
-            {quota.quotaRemaining} analyses remaining
+            <span className={`size-2 rounded-full ${quota.quotaRemaining > 0 ? "bg-primary" : "bg-destructive"}`} />
+            {quota.quotaRemaining} {quota.quotaRemaining === 1 ? "analysis" : "analyses"} remaining
           </div>
         )}
       </div>
@@ -268,22 +329,26 @@ export default function NewAnalysisPage() {
         </div>
       )}
 
-      {/* Step 1: Upload Resume */}
+      {/* Step 1: Upload or Select Resume */}
       {step === 1 && (
         <Card>
           <CardHeader>
-            <CardTitle>Upload Resume</CardTitle>
+            <CardTitle>Select or Upload Resume</CardTitle>
             <CardDescription>
-              Upload your resume as a PDF file (max 5 MB)
+              Upload a new PDF resume (max 5 MB) or pick one of your saved resumes.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
             {/* Drop zone */}
             <div
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className="cursor-pointer rounded-xl border-2 border-dashed border-border p-10 text-center transition-colors hover:border-muted-foreground/30 hover:bg-accent/30"
+              className={`cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-colors ${
+                selectedFile
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-muted-foreground/30 hover:bg-accent/30"
+              }`}
             >
               <input
                 ref={fileInputRef}
@@ -294,11 +359,13 @@ export default function NewAnalysisPage() {
               />
               {selectedFile ? (
                 <div className="flex items-center justify-center gap-3">
-                  <FileText className="size-8 text-muted-foreground" />
+                  <div className="size-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <FileText className="size-5" />
+                  </div>
                   <div className="text-left">
-                    <p className="text-sm font-medium">{selectedFile.name}</p>
+                    <p className="text-sm font-semibold text-foreground">{selectedFile.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {(selectedFile.size / 1024).toFixed(0)} KB
+                      {(selectedFile.size / 1024).toFixed(0)} KB • New Upload Ready
                     </p>
                   </div>
                   <button
@@ -306,9 +373,30 @@ export default function NewAnalysisPage() {
                       e.stopPropagation();
                       setSelectedFile(null);
                     }}
-                    className="ml-2 rounded-full p-1 hover:bg-accent cursor-pointer"
+                    className="ml-2 rounded-full p-1.5 hover:bg-accent text-muted-foreground hover:text-foreground cursor-pointer"
                   >
-                    <X className="size-4 text-muted-foreground" />
+                    <X className="size-4" />
+                  </button>
+                </div>
+              ) : selectedSavedResume ? (
+                <div className="flex items-center justify-center gap-3">
+                  <div className="size-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <FileText className="size-5" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-foreground">{selectedSavedResume.fileName}</p>
+                    <p className="text-xs text-primary font-medium">
+                      Selected from Saved Resumes ({(selectedSavedResume.fileSize / 1024).toFixed(0)} KB)
+                    </p>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedSavedResume(null);
+                    }}
+                    className="ml-2 rounded-full p-1.5 hover:bg-accent text-muted-foreground hover:text-foreground cursor-pointer"
+                  >
+                    <X className="size-4" />
                   </button>
                 </div>
               ) : (
@@ -325,10 +413,101 @@ export default function NewAnalysisPage() {
               )}
             </div>
 
-            <div className="flex justify-end">
+            {/* Saved Resumes Section (for authenticated users) */}
+            {!recruiterStatus?.isRecruiter && (
+              <div className="pt-2 border-t border-border/50">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <FileText className="size-4 text-primary" />
+                    Or Choose from Saved Resumes
+                  </h3>
+                  <span className="text-xs text-muted-foreground font-medium">
+                    {savedResumes.length}/3 saved (auto-pruned on new upload)
+                  </span>
+                </div>
+
+                {isLoadingResumes && savedResumes.length === 0 ? (
+                  <div className="flex items-center justify-center py-6 text-muted-foreground text-xs gap-2">
+                    <Loader2 className="size-4 animate-spin" />
+                    Loading saved resumes...
+                  </div>
+                ) : savedResumes.length === 0 ? (
+                  <div className="rounded-xl border border-border/50 bg-muted/20 p-4 text-center text-xs text-muted-foreground">
+                    No saved resumes yet. Uploaded resumes will appear here for fast reuse.
+                  </div>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-3">
+                    {savedResumes.map((resume) => {
+                      const isSelected = selectedSavedResume?.id === resume.id;
+                      return (
+                        <div
+                          key={resume.id}
+                          onClick={() => {
+                            setSelectedSavedResume(resume);
+                            setSelectedFile(null); // Clear manual file upload if selecting existing
+                            setError(null);
+                          }}
+                          className={`relative flex flex-col justify-between rounded-xl border-2 p-3.5 transition-all cursor-pointer group ${
+                            isSelected
+                              ? "border-primary bg-primary/5 shadow-sm ring-1 ring-primary/20"
+                              : "border-border/70 hover:border-border hover:bg-accent/30"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className={`size-7 rounded-lg flex items-center justify-center shrink-0 ${
+                                isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                              }`}>
+                                <FileText className="size-4" />
+                              </div>
+                              <p className="text-xs font-semibold truncate text-foreground" title={resume.fileName}>
+                                {resume.fileName}
+                              </p>
+                            </div>
+                            {/* Delete Resume Button */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteResume(resume.id);
+                              }}
+                              disabled={deletingResumeId === resume.id}
+                              title="Delete resume"
+                              className="opacity-60 hover:opacity-100 text-muted-foreground hover:text-destructive p-1 rounded-md transition-colors cursor-pointer"
+                            >
+                              {deletingResumeId === resume.id ? (
+                                <Loader2 className="size-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="size-3.5" />
+                              )}
+                            </button>
+                          </div>
+
+                          <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-1">
+                            <span>{(resume.fileSize / 1024).toFixed(0)} KB</span>
+                            <div className="flex items-center gap-1">
+                              <Clock className="size-3" />
+                              <span>{new Date(resume.uploadedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+                            </div>
+                          </div>
+
+                          {isSelected && (
+                            <div className="mt-2.5 flex items-center justify-center gap-1 rounded-md bg-primary/10 py-1 text-[11px] font-semibold text-primary">
+                              <Check className="size-3" /> Selected
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-end pt-2">
               <Button
                 onClick={() => setStep(2)}
-                disabled={!selectedFile}
+                disabled={!hasResumeSelected}
                 className="gap-2 cursor-pointer"
               >
                 Continue
@@ -413,7 +592,7 @@ export default function NewAnalysisPage() {
               Back
             </Button>
             <Button
-              onClick={handleSubmit}
+              onClick={() => handleSubmit()}
               disabled={!canSubmit}
               className="gap-2 cursor-pointer"
             >

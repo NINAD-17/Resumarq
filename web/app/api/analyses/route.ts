@@ -5,8 +5,14 @@ import { getResumesByUser } from "@/lib/db/resumes";
 import { getResumeById } from "@/lib/db/resumes";
 import { toAnalysisResponse } from "@/types/analysis";
 import { enqueueAnalysisJob } from "@/lib/redis";
+import { z } from "zod";
 
 const MAX_JD_LENGTH = 10000; // Characters
+
+const createAnalysisSchema = z.object({
+  resumeId: z.string().min(1, "resumeId is required").max(64),
+  jdText: z.string().max(MAX_JD_LENGTH, `Job description must be under ${MAX_JD_LENGTH} characters`).optional(),
+});
 
 /**
  * POST /api/analyses — Start a new analysis.
@@ -36,7 +42,7 @@ export async function POST(request: NextRequest) {
       if (e instanceof Error && (e as any).code === "QUOTA_EXHAUSTED") {
         throw e;
       }
-      
+
       // Check for recruiter session as fallback
       const { getRecruiterSession } = await import("@/lib/recruiter-session");
       const recruiterSession = await getRecruiterSession();
@@ -56,26 +62,18 @@ export async function POST(request: NextRequest) {
       recruiterInfo = { ip: recruiterSession.ip, token: recruiterSession.token };
     }
 
-    const body = await request.json();
-    const { resumeId, jdText } = body;
-
-    // Validate inputs
-    if (!resumeId || typeof resumeId !== "string") {
+    const body = await request.json().catch(() => null);
+    
+    const parsed = createAnalysisSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "resumeId is required" },
-        { status: 400 },
+        { error: parsed.error.issues[0]?.message || "Invalid request payload" },
+        { status: 400 }
       );
     }
 
-    // jdText is optional — if provided, validate length
-    const cleanJdText = typeof jdText === "string" ? jdText.trim() : "";
-
-    if (cleanJdText.length > MAX_JD_LENGTH) {
-      return NextResponse.json(
-        { error: `Job description must be under ${MAX_JD_LENGTH} characters` },
-        { status: 400 },
-      );
-    }
+    const { resumeId } = parsed.data;
+    const cleanJdText = parsed.data.jdText?.trim() || "";
 
     // Verify the resume exists and belongs to this user
     const resume = await getResumeById(resumeId, userId);

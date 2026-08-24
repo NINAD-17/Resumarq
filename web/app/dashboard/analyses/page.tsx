@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import useSWR from "swr";
 import Link from "next/link";
 import {
   Clock,
@@ -13,6 +13,7 @@ import {
   GitCompareArrows,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { fetcher } from "@/lib/fetcher";
 import type { AnalysisResponse } from "@/types/analysis";
 
 type StatusInfo = {
@@ -51,42 +52,35 @@ const STATUS_CONFIG: Record<string, StatusInfo> = {
   },
 };
 
+const activeProcessingStates = [
+  "pending",
+  "processing",
+  "extracting_data",
+  "analyzing_ats",
+  "evaluating_impact",
+  "comparing_gap",
+  "generating_feedback",
+  "compiling_report",
+  "researching_company",
+];
+
 export default function AnalysesListPage() {
-  const [analyses, setAnalyses] = useState<AnalysisResponse[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchAnalyses = async () => {
-    try {
-      const res = await fetch("/api/analyses");
-      if (!res.ok) throw new Error("Failed to fetch");
-      const data = await res.json();
-      setAnalyses(data);
-      setError(null);
-    } catch {
-      setError("Failed to load analyses");
-    } finally {
-      setIsLoading(false);
+  const { data: analyses = [], error, isLoading } = useSWR<AnalysisResponse[]>(
+    "/api/analyses",
+    fetcher,
+    {
+      revalidateOnFocus: true,
+      dedupingInterval: 2000,
+      refreshInterval: (latestData) => {
+        const hasProcessing = (latestData || []).some((a) =>
+          activeProcessingStates.includes(a.status)
+        );
+        return hasProcessing ? 4000 : 0;
+      },
     }
-  };
+  );
 
-  // Initial fetch
-  useEffect(() => {
-    fetchAnalyses();
-  }, []);
-
-  // Poll every 5s if any analysis is still processing
-  useEffect(() => {
-    const hasProcessing = analyses.some(
-      (a) => ["pending", "processing", "extracting_data", "analyzing_ats", "evaluating_impact", "comparing_gap", "generating_feedback", "compiling_report"].includes(a.status),
-    );
-    if (!hasProcessing) return;
-
-    const interval = setInterval(fetchAnalyses, 5000);
-    return () => clearInterval(interval);
-  }, [analyses]);
-
-  if (isLoading) {
+  if (isLoading && analyses.length === 0) {
     return (
       <div className="space-y-8">
         <div>
@@ -123,12 +117,12 @@ export default function AnalysesListPage() {
 
       {error && (
         <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-          {error}
+          Failed to load analyses. Please try refreshing.
         </div>
       )}
 
       {/* Empty state */}
-      {analyses.length === 0 && !error && (
+      {analyses.length === 0 && !error && !isLoading && (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <FileText className="mb-3 size-10 text-muted-foreground/30" />
@@ -158,7 +152,7 @@ export default function AnalysesListPage() {
             label: statusLabel
           };
 
-          const hasJD = !!analysis.jdText;
+          const hasJD = !!analysis.jdText && analysis.jdText.trim().length > 0;
           const scores = analysis.status === "completed" ? analysis.results?.scores : null;
 
           return (
@@ -179,7 +173,7 @@ export default function AnalysesListPage() {
                             status.animate ? "animate-pulse" : ""
                           }`}
                         />
-                        <p className="truncate text-[15px] font-semibold">
+                        <p className="truncate text-[15px] font-semibold text-foreground">
                           {analysis.results?.title || analysis.resumeFileName || "Resume Analysis"}
                         </p>
                         {analysis.results?.title && analysis.resumeFileName && (

@@ -66,6 +66,22 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
+    // Auto-prune: Keep max 3 resumes per user to prevent S3 storage bloat
+    const existingResumes = await getResumesByUser(userId);
+    if (existingResumes.length >= 3) {
+      const { deleteResumeById } = await import("@/lib/db/resumes");
+      const { deleteFromS3 } = await import("@/lib/s3");
+      const toDelete = existingResumes.slice(2);
+      for (const oldResume of toDelete) {
+        try {
+          await deleteResumeById(oldResume._id.toHexString(), userId);
+          await deleteFromS3(oldResume.s3Key);
+        } catch (cleanupErr) {
+          console.error("Auto-prune old resume failed:", cleanupErr);
+        }
+      }
+    }
+
     // Upload to S3
     const s3Key = await uploadToS3(buffer, userId, file.name, file.type);
 

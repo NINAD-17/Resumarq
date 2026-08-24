@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import useSWR from "swr";
 import {
   ArrowLeft,
   Loader2,
@@ -12,6 +13,8 @@ import {
   Target,
   Lightbulb,
   Briefcase,
+  RotateCw,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +26,7 @@ import { ATSRulesTable } from "@/components/dashboard/ats-rules-table";
 import { BulletAuditCard } from "@/components/dashboard/bullet-audit-card";
 import { GapSection } from "@/components/dashboard/gap-section";
 import { CompanyResearchSection } from "@/components/dashboard/company-research-section";
+import { fetcher } from "@/lib/fetcher";
 import type {
   AnalysisResponse,
   ATSAuditResult,
@@ -44,37 +48,84 @@ const SECTION_META: Record<
   prep: { label: "Interview Prep", icon: Briefcase },
 };
 
+const activeProcessingStates = [
+  "pending",
+  "processing",
+  "extracting_data",
+  "analyzing_ats",
+  "evaluating_impact",
+  "comparing_gap",
+  "generating_feedback",
+  "compiling_report",
+  "researching_company",
+];
+
+function formatErrorMessage(rawError?: string): string {
+  if (!rawError) {
+    return "Something went wrong during the analysis. Please click 'Retry Analysis' to run it again.";
+  }
+
+  const lower = rawError.toLowerCase();
+  if (
+    lower.includes("429") ||
+    lower.includes("resource_exhausted") ||
+    lower.includes("rate limit") ||
+    lower.includes("quota")
+  ) {
+    return "The AI model encountered a temporary high-traffic rate limit. Please click 'Retry Analysis' to run it again.";
+  }
+  if (
+    lower.includes("timeout") ||
+    lower.includes("timed out") ||
+    lower.includes("deadline") ||
+    lower.includes("504") ||
+    lower.includes("502")
+  ) {
+    return "The analysis timed out due to temporary network latency. Please click 'Retry Analysis' to try again.";
+  }
+  if (
+    lower.includes("pdf") ||
+    lower.includes("corrupt") ||
+    lower.includes("parse") ||
+    lower.includes("extract")
+  ) {
+    return "We had trouble reading this resume PDF. Please ensure the PDF is not password protected or corrupted, and try again.";
+  }
+
+  return "An unexpected error occurred while processing your resume. Please click 'Retry Analysis' to run it again.";
+}
+
 export default function AnalysisDetailPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
 
-  const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<Section>("summary");
   const [isRecruiter, setIsRecruiter] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [isOpeningResume, setIsOpeningResume] = useState(false);
 
-  const fetchAnalysis = async () => {
-    try {
-      const res = await fetch(`/api/analyses/${id}`);
-      if (!res.ok) throw new Error("Failed to fetch");
-      const data = await res.json();
-      setAnalysis(data);
-      setError(null);
-    } catch {
-      setError("Failed to load analysis");
-    } finally {
-      setIsLoading(false);
+  // SWR: Instant cache retrieval + smart background polling
+  const {
+    data: analysis,
+    error: fetchError,
+    isLoading,
+    mutate,
+  } = useSWR<AnalysisResponse>(
+    id ? `/api/analyses/${id}` : null,
+    fetcher,
+    {
+      revalidateOnFocus: true,
+      dedupingInterval: 2000,
+      refreshInterval: (latestData) => {
+        if (!latestData) return 0;
+        const isProcessing = activeProcessingStates.includes(latestData.status);
+        return isProcessing ? 3000 : 0;
+      },
     }
-  };
+  );
 
-  // Initial fetch
-  useEffect(() => {
-    fetchAnalysis();
-  }, [id]);
-
-  // Check if this is a recruiter session
+  // Check recruiter status
   useEffect(() => {
     fetch("/api/recruiter/check")
       .then((res) => res.json())
@@ -82,20 +133,54 @@ export default function AnalysisDetailPage() {
       .catch(() => {});
   }, []);
 
-  // Poll while processing
-  useEffect(() => {
-    if (
-      !analysis ||
-      !["pending", "processing", "extracting_data", "analyzing_ats", "evaluating_impact", "comparing_gap", "generating_feedback", "compiling_report"].includes(analysis.status)
-    )
-      return;
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      const res = await fetch(`/api/analyses/${id}/retry`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to retry analysis");
+      }
+      const data = await res.json();
+      mutate(data, false);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to retry analysis");
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
-    const interval = setInterval(fetchAnalysis, 3000);
-    return () => clearInterval(interval);
-  }, [analysis?.status]);
+  const handleOpenResume = async () => {
+    if (!analysis) return;
+
+    if (analysis.resumeDownloadUrl) {
+      window.open(analysis.resumeDownloadUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    // Dynamic fetch if not directly cached
+    setIsOpeningResume(true);
+    try {
+      const res = await fetch(`/api/resumes/${analysis.resumeId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.downloadUrl) {
+          window.open(data.downloadUrl, "_blank", "noopener,noreferrer");
+          return;
+        }
+      }
+      throw new Error("Unable to get resume download link");
+    } catch (err) {
+      alert("Could not load resume. The file may have been removed.");
+    } finally {
+      setIsOpeningResume(false);
+    }
+  };
 
   // ─── Loading ────────────────────────────────────────────────────
-  if (isLoading) {
+  if (isLoading && !analysis) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
         <Loader2 className="size-8 animate-spin text-muted-foreground" />
@@ -104,7 +189,7 @@ export default function AnalysisDetailPage() {
   }
 
   // ─── Error ──────────────────────────────────────────────────────
-  if (error || !analysis) {
+  if (fetchError || !analysis) {
     return (
       <div className="space-y-4">
         <Button variant="ghost" size="sm" onClick={() => router.back()} className="cursor-pointer">
@@ -112,13 +197,13 @@ export default function AnalysisDetailPage() {
           Back
         </Button>
         <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-          {error || "Analysis not found"}
+          Analysis not found or could not be loaded.
         </div>
       </div>
     );
   }
 
-  const isProcessing = ["pending", "processing", "extracting_data", "analyzing_ats", "evaluating_impact", "comparing_gap", "generating_feedback", "compiling_report"].includes(analysis?.status || "");
+  const isProcessing = activeProcessingStates.includes(analysis.status);
 
   const getStatusText = (status: string) => {
     switch (status) {
@@ -130,11 +215,12 @@ export default function AnalysisDetailPage() {
       case "comparing_gap": return "Performing Gap Analysis...";
       case "generating_feedback": return "Generating Feedback...";
       case "compiling_report": return "Compiling Report...";
+      case "researching_company": return "Researching Company Insights...";
       default: return "Processing Analysis...";
     }
   };
 
-  // ─── Processing ─────────────────────────────────────────────────
+  // ─── Processing State ───────────────────────────────────────────
   if (isProcessing) {
     return (
       <div className="space-y-6">
@@ -162,7 +248,7 @@ export default function AnalysisDetailPage() {
     );
   }
 
-  // ─── Failed ─────────────────────────────────────────────────────
+  // ─── Failed State ───────────────────────────────────────────────
   if (analysis.status === "failed") {
     return (
       <div className="space-y-6">
@@ -170,21 +256,32 @@ export default function AnalysisDetailPage() {
           <ArrowLeft className="mr-2 size-4" />
           Back
         </Button>
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-20 text-center">
-            <AlertTriangle className="mb-4 size-12 text-status-critical" />
-            <h2 className="text-xl font-semibold">Analysis Failed</h2>
+        <Card className="border-destructive/30">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="size-14 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mb-4">
+              <AlertTriangle className="size-8" />
+            </div>
+            <h2 className="text-2xl font-bold">Analysis Failed</h2>
             <p className="mt-3 max-w-md text-[15px] leading-relaxed text-muted-foreground">
-              Something went wrong during the analysis. This can happen if the
-              resume format is unsupported or the service is temporarily
-              unavailable. Please try again.
+              {formatErrorMessage(analysis.error)}
             </p>
-            <Button
-              className="mt-8 cursor-pointer"
-              onClick={() => router.push("/dashboard")}
-            >
-              {isRecruiter ? "Back to Dashboard" : "Start New Analysis"}
-            </Button>
+            <div className="mt-8 flex flex-col sm:flex-row items-center gap-3">
+              <Button
+                onClick={handleRetry}
+                disabled={isRetrying}
+                className="gap-2 cursor-pointer min-w-[160px]"
+              >
+                <RotateCw className={`size-4 ${isRetrying ? "animate-spin" : ""}`} />
+                {isRetrying ? "Retrying..." : "Retry Analysis"}
+              </Button>
+              <Button
+                variant="outline"
+                className="cursor-pointer"
+                onClick={() => router.push("/dashboard")}
+              >
+                {isRecruiter ? "Back to Dashboard" : "Start New Analysis"}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -204,6 +301,7 @@ export default function AnalysisDetailPage() {
     "impact",
     ...(gap ? ["gap" as Section] : []),
     ...(hasInsights ? ["insights" as Section] : []),
+    "prep",
   ];
 
   // Generate humanized section summaries from data
@@ -242,12 +340,10 @@ export default function AnalysisDetailPage() {
     }`,
 
     gap: gap
-      ? `${greeting}we compared your resume against the job description and found ${matchedCount} matching ${matchedCount === 1 ? "skill" : "skills"} and ${missingCount} ${missingCount === 1 ? "gap" : "gaps"}. ${
-          missingCount > 3
-            ? `There are several key requirements from the JD that your resume doesn't cover yet. Adding these missing skills and keywords will significantly improve your resume's ranking in ATS systems and help catch the recruiter's eye.`
-            : missingCount > 0
-              ? `You're mostly aligned with the job requirements, but there ${missingCount === 1 ? "is" : "are"} ${missingCount} ${missingCount === 1 ? "skill" : "skills"} the employer is looking for that ${missingCount === 1 ? "isn't" : "aren't"} mentioned in your resume. Consider weaving ${missingCount === 1 ? "it" : "them"} into your experience descriptions where relevant.`
-              : "Excellent coverage! Your skills align very well with what the employer is looking for. Your resume should pass keyword filters with ease."
+      ? `${greeting}we compared your resume against the job description and found ${matchedCount} matching skills and ${missingCount} gaps. ${
+          missingCount > 0
+            ? "There are several key requirements from the JD that your resume doesn't cover yet. Adding these missing skills and keywords will significantly improve your resume's ranking in ATS systems and help catch the recruiter's eye."
+            : "Your resume covers all the key requirements from the job description — fantastic match!"
         }`
       : "Gap analysis is only available when a job description is provided.",
 
@@ -258,27 +354,91 @@ export default function AnalysisDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Back + Title */}
-      <div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push(isRecruiter ? "/dashboard" : "/dashboard/analyses")}
-          className="mb-3 cursor-pointer"
-        >
-          <ArrowLeft className="mr-2 size-4" />
-          {isRecruiter ? "Back to Dashboard" : "All Analyses"}
-        </Button>
-        <h1 className="text-2xl font-bold tracking-tight">
-          {results?.title || analysis.resumeFileName || "Analysis Results"}
-        </h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          {new Date(analysis.createdAt).toLocaleDateString("en-US", {
-            month: "long",
-            day: "numeric",
-            year: "numeric",
+      {/* Back + Title & Action Button */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push(isRecruiter ? "/dashboard" : "/dashboard/analyses")}
+            className="mb-3 cursor-pointer"
+          >
+            <ArrowLeft className="mr-2 size-4" />
+            {isRecruiter ? "Back to Dashboard" : "All Analyses"}
+          </Button>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            {results?.title || analysis.resumeFileName || "Analysis Results"}
+          </h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {new Date(analysis.createdAt).toLocaleDateString("en-US", {
+              month: "long",
+              day: "numeric",
+              year: "numeric",
+            })}
+          </p>
+        </div>
+
+        {/* View Attached Resume Button (Always rendered if resume exists) */}
+        {(analysis.resumeFileName || analysis.resumeId) && (
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <Button
+              onClick={handleOpenResume}
+              disabled={isOpeningResume}
+              variant="outline"
+              size="sm"
+              className="gap-2 cursor-pointer border-border/80 bg-card hover:bg-accent hover:text-accent-foreground shadow-sm h-10 px-4"
+            >
+              {isOpeningResume ? (
+                <Loader2 className="size-4 animate-spin text-primary" />
+              ) : (
+                <FileText className="size-4 text-primary" />
+              )}
+              <span className="font-medium text-xs sm:text-sm">
+                {isOpeningResume
+                  ? "Opening Resume..."
+                  : analysis.resumeFileName
+                  ? `View Resume (${analysis.resumeFileName})`
+                  : "View Attached Resume"}
+              </span>
+              <ExternalLink className="size-3.5 text-muted-foreground" />
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* ─── Mobile Scores & Navigation Bar (< md screens) ────────── */}
+      <div className="w-full md:hidden space-y-4">
+        {/* Mobile scores strip */}
+        <div className="flex items-center justify-around rounded-xl border border-border bg-card px-4 py-3.5 shadow-sm">
+          <MiniScore label="Overall" value={results.scores.overall} color="var(--score-overall)" />
+          <MiniScore label="ATS" value={results.scores.ats} color="var(--score-ats)" />
+          <MiniScore label="Impact" value={results.scores.impact} color="var(--score-impact)" />
+          {results.scores.match != null && (
+            <MiniScore label="Match" value={results.scores.match} color="var(--score-match)" />
+          )}
+        </div>
+
+        {/* Scrollable tab bar — no visible scrollbar */}
+        <div className="flex gap-1 overflow-x-auto border-b border-border pb-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          {sections.map((sec) => {
+            const { label, icon: Icon } = SECTION_META[sec];
+            const isActive = activeSection === sec;
+            return (
+              <button
+                key={sec}
+                onClick={() => setActiveSection(sec)}
+                className={`flex shrink-0 items-center gap-1.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors cursor-pointer ${
+                  isActive
+                    ? "border-b-2 border-primary text-foreground font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Icon className="size-3.5 text-primary" />
+                <span>{label}</span>
+              </button>
+            );
           })}
-        </p>
+        </div>
       </div>
 
       {/* ─── 2-Column Layout ──────────────────────────────────────── */}
@@ -321,8 +481,8 @@ export default function AnalysisDetailPage() {
                         : "text-muted-foreground hover:bg-accent hover:text-foreground"
                     }`}
                   >
-                    <Icon className="size-4" />
-                    {label}
+                    <Icon className="size-4 shrink-0" />
+                    <span>{label}</span>
                   </button>
                 );
               })}
@@ -330,267 +490,237 @@ export default function AnalysisDetailPage() {
           </div>
         </aside>
 
-        {/* ─── Mobile section tabs (visible on small screens) ──────── */}
-        <div className="w-full md:hidden">
-          {/* Mobile scores row */}
-          <div className="mb-4 flex items-center justify-around rounded-xl border border-border bg-card px-4 py-3">
-            <MiniScore label="Overall" value={results.scores.overall} />
-            <MiniScore label="ATS" value={results.scores.ats} />
-            <MiniScore label="Impact" value={results.scores.impact} />
-            {results.scores.match != null && (
-              <MiniScore label="Match" value={results.scores.match} />
-            )}
+        {/* ─── Right Content Area ──────────────────────────────────── */}
+        <main className="min-w-0 flex-1 space-y-8">
+          {/* Section Summary Card */}
+          <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              {(() => {
+                const Icon = SECTION_META[activeSection].icon;
+                return <Icon className="size-4 text-primary" />;
+              })()}
+              <span>{SECTION_META[activeSection].label}</span>
+            </div>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              {sectionSummaries[activeSection]}
+            </p>
           </div>
 
-          {/* Scrollable tab bar — no visible scrollbar */}
-          <div className="mb-6 flex gap-1 overflow-x-auto border-b border-border pb-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-            {sections.map((sec) => {
-              const { label, icon: Icon } = SECTION_META[sec];
-              const isActive = activeSection === sec;
-              return (
-                <button
-                  key={sec}
-                  onClick={() => setActiveSection(sec)}
-                  className={`flex shrink-0 items-center gap-1.5 px-3 py-2.5 text-[13px] font-medium transition-colors cursor-pointer ${
-                    isActive
-                      ? "border-b-2 border-foreground text-foreground"
-                      : "text-muted-foreground"
-                  }`}
+          {/* Section Content */}
+          {activeSection === "summary" && (
+            <div className="space-y-6">
+              {/* Quick stats grid */}
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <MiniStat label="ATS Rules Passed" value={`${atsPassed}/${atsTotal}`} />
+                <MiniStat label="Quantification" value={`${quantRate}%`} />
+                <MiniStat label="Skills Matched" value={gap ? `${matchedCount}` : "N/A"} />
+                <MiniStat label="Skill Gaps" value={gap ? `${missingCount}` : "N/A"} />
+              </div>
+
+              {/* Critical fixes callout */}
+              {atsCritical > 0 && (
+                <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-destructive">
+                    <AlertTriangle className="size-4" />
+                    <span>Action Required: {atsCritical} Critical ATS {atsCritical === 1 ? "Issue" : "Issues"}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Check the ATS Audit tab to fix these formatting issues before submitting your resume.
+                  </p>
+                </div>
+              )}
+
+              {/* Bullet rewrites preview */}
+              {impact.bulletAudits.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold">Priority Bullet Rewrites</h3>
+                  <div className="space-y-3">
+                    {impact.bulletAudits
+                      .filter((b) => b.suggestedRewrite && b.bulletScore < 70)
+                      .slice(0, 3)
+                      .map((bullet, i) => (
+                        <BulletAuditCard key={i} bullet={bullet} index={i} />
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeSection === "ats" && (
+            <ATSRulesTable rules={ats.rules} />
+          )}
+
+          {activeSection === "impact" && (
+            <div className="space-y-6">
+              {/* Quantification bar */}
+              <div className="rounded-xl border border-border bg-card p-4">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">Quantification Rate</span>
+                  <span className="font-bold">{quantRate}%</span>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${quantRate}%`,
+                      backgroundColor: "var(--score-impact)",
+                    }}
+                  />
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {quantRate >= 60
+                    ? "Great job! Most of your bullets include metrics."
+                    : "Aim for at least 60% of bullets containing numbers or metrics."}
+                </p>
+              </div>
+
+              {/* Career progression notes */}
+              {impact.careerProgressionNotes.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold">Career Progression</h3>
+                  {impact.careerProgressionNotes.map((note, i) => (
+                    <div
+                      key={i}
+                      className="rounded-lg border border-border bg-card px-4 py-3 text-xs leading-relaxed text-muted-foreground"
+                    >
+                      {note.observation}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Employment gaps */}
+              {impact.employmentGaps.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold">Employment Gaps</h3>
+                  {impact.employmentGaps.map((gap, i) => (
+                    <div
+                      key={i}
+                      className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs text-amber-600 dark:text-amber-400"
+                    >
+                      {gap}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Bullet audits */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold">
+                  Bullet-by-Bullet Analysis ({impact.bulletAudits.length})
+                </h3>
+                {impact.bulletAudits.map((bullet, i) => (
+                  <BulletAuditCard key={i} bullet={bullet} index={i} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeSection === "gap" && gap && (
+            <GapSection
+              skillMatches={gap.skillMatches}
+              responsibilityCoverage={gap.responsibilityCoverage}
+              seniorityMatch={gap.seniorityMatch}
+              seniorityNote={gap.seniorityNote}
+              keywordsToAdd={gap.keywordsToAdd}
+              matchedSkills={results.matchedSkills}
+              missingSkills={results.missingSkills}
+            />
+          )}
+
+          {activeSection === "insights" && hasInsights && (
+            <div className="space-y-3">
+              {results.additionalFindings.map((finding, i) => (
+                <div
+                  key={i}
+                  className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-2"
                 >
-                  <Icon className="size-3.5" />
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-foreground">
+                      {finding.title}
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                        finding.severity === "critical"
+                          ? "bg-destructive/10 text-destructive"
+                          : finding.severity === "warning"
+                            ? "bg-amber-500/10 text-amber-500"
+                            : "bg-blue-500/10 text-blue-500"
+                      }`}
+                    >
+                      {finding.severity}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    {finding.description}
+                  </p>
+                  {finding.suggestion && (
+                    <div className="rounded-lg bg-accent/40 p-3 text-xs text-foreground mt-2 border border-border/40">
+                      <span className="font-semibold text-primary">Recommendation: </span>
+                      {finding.suggestion}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
-          {/* Mobile main content */}
-          <SectionContent
-            section={activeSection}
-            summaries={sectionSummaries}
-            ats={ats}
-            impact={impact}
-            gap={gap}
-            results={results}
-          />
-        </div>
-
-        {/* ─── Right Main Panel (desktop) ──────────────────────────── */}
-        <main className="hidden min-w-0 flex-1 md:block">
-          <SectionContent
-            section={activeSection}
-            summaries={sectionSummaries}
-            ats={ats}
-            impact={impact}
-            gap={gap}
-            results={results}
-          />
+          {activeSection === "prep" && (
+            <CompanyResearchSection data={results.companyResearch} />
+          )}
         </main>
       </div>
     </div>
   );
 }
 
-// ─── Sub-components ─────────────────────────────────────────────────
+/* ─── Helper sub-components ──────────────────────────────────────── */
 
-/** Compact score row for the left sidebar */
-function ScoreRow({ label, value, color }: { label: string; value: number; color: string }) {
-  const percentage = value;
-  return (
-    <div className="flex items-center justify-between gap-3 py-1.5">
-      <span className="text-[13px] text-muted-foreground">{label}</span>
-      <div className="flex items-center gap-2">
-        <div className="h-1.5 w-16 overflow-hidden rounded-full bg-border">
-          <div
-            className="h-full rounded-full transition-all duration-700"
-            style={{ width: `${percentage}%`, backgroundColor: color }}
-          />
-        </div>
-        <span className="w-7 text-right text-[13px] font-semibold tabular-nums" style={{ color }}>
-          {value}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/** Mini score for mobile view */
-function MiniScore({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="flex flex-col items-center gap-0.5">
-      <span className="text-xl font-bold tabular-nums">{value}</span>
-      <span className="text-[11px] text-muted-foreground">{label}</span>
-    </div>
-  );
-}
-
-/** Renders the right-panel content for a given section */
-function SectionContent({
-  section,
-  summaries,
-  ats,
-  impact,
-  gap,
-  results,
+function ScoreRow({
+  label,
+  value,
+  color,
 }: {
-  section: Section;
-  summaries: Record<Section, string>;
-  ats: ATSAuditResult;
-  impact: ImpactAuditResult;
-  gap: GapAnalysisResult | null;
-  results: NonNullable<AnalysisResponse["results"]>;
+  label: string;
+  value: number;
+  color: string;
 }) {
-  const { label, icon: Icon } = SECTION_META[section];
-
   return (
-    <div className="space-y-6">
-      {/* Section Header + Summary */}
-      <div className="rounded-xl border border-border bg-card p-5 md:p-6">
-        <div className="flex items-center gap-2.5 mb-3">
-          <Icon className="size-5 text-muted-foreground" />
-          <h2 className="text-lg md:text-xl font-bold">{label}</h2>
-        </div>
-        <p className="text-[14px] md:text-[15px] leading-relaxed text-muted-foreground">
-          {summaries[section]}
-        </p>
-      </div>
-
-      {/* Section-specific content */}
-      {section === "summary" && null /* Summary section only has the summary card above */}
-
-      {section === "ats" && ats && (
-        <ATSRulesTable rules={ats.rules} />
-      )}
-
-      {section === "impact" && impact && (
-        <ImpactSection impact={impact} />
-      )}
-
-      {section === "gap" && gap && (
-        <GapSection
-          skillMatches={gap.skillMatches}
-          responsibilityCoverage={gap.responsibilityCoverage}
-          seniorityMatch={gap.seniorityMatch}
-          seniorityNote={gap.seniorityNote}
-          keywordsToAdd={gap.keywordsToAdd}
-          matchedSkills={results.matchedSkills}
-          missingSkills={results.missingSkills}
-        />
-      )}
-
-      {section === "insights" && (
-        <InsightsSection results={results} />
-      )}
-
-      {section === "prep" && results.companyResearch && (
-        <CompanyResearchSection data={results.companyResearch} />
-      )}
+    <div className="flex items-center justify-between py-1 text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-bold tabular-nums" style={{ color }}>
+        {value}
+      </span>
     </div>
   );
 }
 
-/** Insights section — additional findings from the Critic */
-function InsightsSection({ results }: { results: NonNullable<AnalysisResponse["results"]> }) {
-  if (!results.additionalFindings || results.additionalFindings.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-border bg-card p-6 text-center">
-        <p className="text-[14px] text-muted-foreground">No additional insights for this analysis.</p>
-      </div>
-    );
-  }
-
+function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="space-y-3">
-      {results.additionalFindings.map((finding, i) => (
-        <div
-          key={i}
-          className={`rounded-xl border border-border bg-card px-5 py-4 border-l-[3px] ${
-            finding.severity === "critical"
-              ? "border-l-status-critical"
-              : finding.severity === "warning"
-                ? "border-l-status-warning"
-                : "border-l-score-ats"
-          }`}
-        >
-          <p className="text-[15px] font-semibold">{finding.title}</p>
-          <p className="mt-1.5 text-[13px] md:text-[14px] leading-relaxed text-muted-foreground">
-            {finding.description}
-          </p>
-          {finding.suggestion && (
-            <div className="mt-2 flex items-start gap-2 rounded-md bg-score-ats/5 px-3 py-2">
-              <span className="text-sm">💡</span>
-              <p className="text-[13px] leading-relaxed text-score-ats">
-                {finding.suggestion}
-              </p>
-            </div>
-          )}
-        </div>
-      ))}
+    <div className="rounded-xl border border-border bg-card p-4 text-center">
+      <p className="text-lg font-bold">{value}</p>
+      <p className="mt-0.5 text-[11px] text-muted-foreground">{label}</p>
     </div>
   );
 }
 
-/** Impact section — quantification + bullet cards */
-function ImpactSection({ impact }: { impact: ImpactAuditResult }) {
-  const quantRate = Math.round(impact.overallQuantificationRate * 100);
-
+function MiniScore({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: number;
+  color?: string;
+}) {
   return (
-    <div className="space-y-6">
-      {/* Quantification Rate bar */}
-      <div className="rounded-xl border border-border bg-card p-6">
-        <div className="flex items-center justify-between">
-          <span className="text-[15px] font-semibold">Quantification Rate</span>
-          <span className="text-lg font-bold tabular-nums">{quantRate}%</span>
-        </div>
-        <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-border">
-          <div
-            className="h-full rounded-full bg-score-impact transition-all duration-700"
-            style={{ width: `${quantRate}%` }}
-          />
-        </div>
-        <p className="mt-2 text-[13px] text-muted-foreground">
-          {quantRate >= 50
-            ? "Good — most of your bullets include measurable results."
-            : "Consider adding more numbers, percentages, or metrics to your bullet points."}
-        </p>
-      </div>
-
-      {/* Career progression notes */}
-      {impact.careerProgressionNotes.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-6">
-          <h3 className="text-[15px] font-semibold mb-3">Career Progression</h3>
-          <div className="space-y-2">
-            {impact.careerProgressionNotes.map((note, i) => (
-              <div key={i} className="flex items-start gap-2.5">
-                <div
-                  className={`mt-1.5 size-2 shrink-0 rounded-full ${
-                    note.severity === "positive"
-                      ? "bg-status-pass"
-                      : note.severity === "warning"
-                        ? "bg-status-warning"
-                        : "bg-muted-foreground"
-                  }`}
-                />
-                <span className="text-[14px] leading-relaxed text-muted-foreground">
-                  {note.observation}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Bullet audits */}
-      <div>
-        <h3 className="mb-4 text-[15px] font-semibold">
-          Bullet Analysis ({impact.bulletAudits.length} bullets)
-        </h3>
-        <div className="space-y-4">
-          {impact.bulletAudits.map((bullet, i) => (
-            <BulletAuditCard key={i} bullet={bullet} index={i} />
-          ))}
-        </div>
-      </div>
+    <div className="flex flex-col items-center">
+      <span className="text-xl font-bold tabular-nums text-foreground" style={color ? { color } : undefined}>
+        {value}
+      </span>
+      <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
     </div>
   );
 }
+

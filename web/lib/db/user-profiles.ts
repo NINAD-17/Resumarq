@@ -41,7 +41,7 @@ export async function getOrCreateProfile(userId: string): Promise<UserProfileDoc
     const now = new Date();
     const newProfile: Omit<UserProfileDocument, "_id"> = {
       userId,
-      quotaRemaining: 0, // 0 free analyses for new users (pay per analysis)
+      quotaRemaining: 1, // 1 free analyses for new users (pay per analysis)
       plan: "free",
       createdAt: now,
       updatedAt: now,

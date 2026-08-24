@@ -24,13 +24,30 @@ export async function insertAnalysis(
   return { ...data, _id: result.insertedId } as AnalysisDocument;
 }
 
-/** List analyses — excludes heavy fields (jdText, results) for performance */
+/** List analyses — includes essential metadata (jdText, title, scores) while omitting heavy audits */
 export async function getAnalysesByUser(
   userId: string,
 ): Promise<AnalysisDocument[]> {
   const col = await getCollection();
   return col
-    .find({ userId }, { projection: { jdText: 0, results: 0 } })
+    .find(
+      { userId },
+      {
+        projection: {
+          userId: 1,
+          resumeId: 1,
+          jdText: 1,
+          status: 1,
+          error: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          completedAt: 1,
+          "results.title": 1,
+          "results.scores": 1,
+          "results.candidateName": 1,
+        },
+      }
+    )
     .sort({ createdAt: -1 })
     .toArray();
 }
@@ -61,3 +78,27 @@ export async function updateAnalysisStatus(
     },
   );
 }
+
+/** Reset a failed analysis back to pending status for retry */
+export async function resetAnalysisForRetry(
+  id: string,
+  userId: string,
+): Promise<boolean> {
+  const col = await getCollection();
+  const result = await col.updateOne(
+    { _id: new ObjectId(id), userId, status: "failed" },
+    {
+      $set: {
+        status: "pending",
+        updatedAt: new Date(),
+      },
+      $unset: {
+        error: "",
+        results: "",
+        completedAt: "",
+      },
+    },
+  );
+  return result.modifiedCount === 1;
+}
+

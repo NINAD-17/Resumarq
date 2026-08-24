@@ -161,6 +161,7 @@ export interface AnalysisResponse {
   id: string;
   resumeId: string;
   resumeFileName?: string;
+  resumeDownloadUrl?: string;
   jdText?: string | null;
   status: AnalysisStatus;
   error?: string;

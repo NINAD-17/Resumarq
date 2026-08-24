@@ -31,14 +31,22 @@ export default async function LandingPage({ searchParams }: PageProps) {
 
       <Header session={session} />
 
-      {/* Error banner for recruiter init failures */}
+      {/* Error banner for recruiter init & auth failures */}
       {errorParam && (
         <div className="fixed top-16 left-0 right-0 z-30 px-4 pt-2">
           <div className="mx-auto max-w-xl rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive flex items-center gap-2">
             <AlertTriangle className="size-4 shrink-0" />
-            {errorParam === "invalid_token"
-              ? "Invalid recruiter access link. Please check the URL you received."
-              : "Something went wrong initializing your recruiter session. Please try again."}
+            {errorParam === "account_not_linked"
+              ? "An account with this email address already exists. Please sign in with your email and password instead."
+              : errorParam === "invalid_token"
+                ? "Invalid recruiter access link. Please check the URL you received."
+                : errorParam === "init_failed"
+                  ? "Something went wrong initializing your recruiter session. Please try again."
+                  : errorParam === "access_denied"
+                    ? "Access was denied during sign in. Please try again."
+                    : typeof errorParam === "string" && errorParam.length < 100
+                      ? errorParam
+                      : "Something went wrong. Please try again."}
           </div>
         </div>
       )}
@@ -94,14 +102,19 @@ export default async function LandingPage({ searchParams }: PageProps) {
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
-              {isRecruiter && !isLoggedIn && (
-                <RecruiterCTA token={token as string} />
-              )}
-              
-              {!isRecruiter && (
-                <Link href={isLoggedIn ? "/dashboard" : "/sign-up"}>
+              {isLoggedIn ? (
+                <Link href="/dashboard">
                   <Button size="lg" className="w-full sm:w-auto text-base h-12 px-10 shadow-lg shadow-primary/25 cursor-pointer rounded-full transition-transform hover:scale-105">
-                    {isLoggedIn ? "Go to Dashboard" : "Get Started Now"}
+                    Go to Dashboard
+                    <ArrowRight className="ml-2 size-5" />
+                  </Button>
+                </Link>
+              ) : isRecruiter ? (
+                <RecruiterCTA token={token as string} />
+              ) : (
+                <Link href="/sign-up">
+                  <Button size="lg" className="w-full sm:w-auto text-base h-12 px-10 shadow-lg shadow-primary/25 cursor-pointer rounded-full transition-transform hover:scale-105">
+                    Get Started Now
                     <ArrowRight className="ml-2 size-5" />
                   </Button>
                 </Link>
