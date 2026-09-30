@@ -13,11 +13,20 @@ class Settings(BaseSettings):
     # MongoDB
     mongodb_uri: str
 
-    # AWS S3
-    aws_access_key_id: str
-    aws_secret_access_key: str
-    aws_region: str
-    aws_s3_bucket_name: str
+    # Storage Provider Configuration: "s3" or "cloudinary"
+    storage_provider: str = "s3"
+
+    # AWS S3 (Optional if using Cloudinary)
+    aws_access_key_id: str = ""
+    aws_secret_access_key: str = ""
+    aws_region: str = ""
+    aws_s3_bucket_name: str = ""
+
+    # Cloudinary (Optional if using AWS S3)
+    cloudinary_cloud_name: str = ""
+    cloudinary_api_key: str = ""
+    cloudinary_api_secret: str = ""
+    cloudinary_url: str = ""
 
     # Google Gemini
     google_api_key: str
