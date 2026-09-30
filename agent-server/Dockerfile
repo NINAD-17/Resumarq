@@ -39,5 +39,6 @@ COPY worker.py .
 # 8. Expose FastAPI monitoring port
 EXPOSE 8000
 
-# 9. Default container command (overridden by docker-compose for worker vs api)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# 9. Default container command (runs both FastAPI health monitor & Redis worker)
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} & exec python worker.py"]
+
